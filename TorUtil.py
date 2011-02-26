@@ -339,7 +339,7 @@ def plog(level, msg, *args):
     if not logfile:
       logfile = sys.stdout
     # HACK: if logfile is a string, assume is it the desired filename.
-    if isinstance(logfile, str) or isinstance(logfile, unicode):
+    if isinstance(logfile, basestring):
       f = logging.FileHandler(logfile)
       f.setFormatter(formatter)
       logger.addHandler(f)
