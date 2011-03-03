@@ -1342,7 +1342,11 @@ class SmartSocket(_SocketWrapper):
 
   def __del__(self):
     SmartSocket._table_lock.acquire()
-    SmartSocket.port_table.remove(self.__local_addr)
+    try:
+      SmartSocket.port_table.remove(self.__local_addr)
+    except AttributeError,e:
+      traceback.print_exc()
+      plog("WARN", "Hrm. Socket instance without local_addr attribute?")
     SmartSocket._table_lock.release()
     plog("DEBUG", "Removed "+self.__local_addr+" from our local port list")
 
