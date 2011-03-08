@@ -1318,6 +1318,12 @@ class SmartSocket(_SocketWrapper):
   port_table = set()
   _table_lock = threading.Lock()
 
+  def __init__(self, family=2, type=1, proto=0, _sock=None):
+    ret = super(SmartSocket, self).__init__(family, type, proto, _sock)
+    self.__local_addr = None
+    plog("DEBUG", "New socket constructor")
+    return ret
+
   def connect(self, args):
     ret = super(SmartSocket, self).connect(args)
     myaddr = self.getsockname()
@@ -1341,14 +1347,13 @@ class SmartSocket(_SocketWrapper):
     return ret
 
   def __del__(self):
-    SmartSocket._table_lock.acquire()
-    try:
+    if self.__local_addr:
+      SmartSocket._table_lock.acquire()
       SmartSocket.port_table.remove(self.__local_addr)
-    except AttributeError,e:
-      traceback.print_exc()
-      plog("WARN", "Hrm. Socket instance without local_addr attribute?")
-    SmartSocket._table_lock.release()
-    plog("DEBUG", "Removed "+self.__local_addr+" from our local port list")
+      plog("DEBUG", "Removed "+self.__local_addr+" from our local port list")
+      SmartSocket._table_lock.release()
+    else:
+      plog("DEBUG", "Got a socket deletion with no address")
 
   def table_size():
     SmartSocket._table_lock.acquire()
