@@ -28,6 +28,10 @@ from sqlalchemy import create_engine, and_, or_, not_, func
 from sqlalchemy.sql import func,select
 from sqlalchemy.schema import ThreadLocalMetaData,MetaData
 from elixir import *
+from elixir import options
+# migrate from elixir 06 to 07
+options.MIGRATION_TO_07_AID = True
+
 
 # Nodes with a ratio below this value will be removed from consideration
 # for higher-valued nodes
@@ -291,7 +295,7 @@ class RouterStats(Entity):
   _compute_stats_relation = Callable(_compute_stats_relation)
 
   def _compute_stats_query(stats_clause):
-    tc_session.clear()
+    tc_session.expunge_all()
     # http://www.sqlalchemy.org/docs/04/sqlexpression.html#sql_update
     to_s = select([func.count(Extension.id)], 
         and_(stats_clause, Extension.table.c.to_node_idhex
@@ -404,7 +408,7 @@ class RouterStats(Entity):
   _compute_ranks = Callable(_compute_ranks)
 
   def _compute_ratios(stats_clause):
-    tc_session.clear()
+    tc_session.expunge_all()
     avg_from_rate = select([func.avg(RouterStats.circ_from_rate)],
                            stats_clause).as_scalar()
     avg_to_rate = select([func.avg(RouterStats.circ_to_rate)],
@@ -476,7 +480,7 @@ class RouterStats(Entity):
   _compute_filtered_ratios = Callable(_compute_filtered_ratios)
 
   def reset():
-    tc_session.clear()
+    tc_session.expunge_all()
     RouterStats.table.drop()
     RouterStats.table.create()
     for r in Router.query.all():
@@ -637,7 +641,7 @@ def reset_all():
     tc_session.add(r)
 
   tc_session.commit()
-  tc_session.clear()
+  tc_session.expunge_all()
 
   BwHistory.table.drop() # Will drop subclasses
   Extension.table.drop()
