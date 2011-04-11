@@ -63,6 +63,10 @@ def setup_db(db_uri, echo=False, drop=False):
     # wouldn't kill you, you know.
     tc_session.add = tc_session.save_or_update
 
+  if sqlalchemy.__version__ < "0.6.0":
+    # clear() replaced with expunge_all
+    tc_session.clear = tc_session.expunge_all
+
 class Router(Entity):
   using_options(shortnames=True, order_by='-published', session=tc_session, metadata=tc_metadata)
   using_mapper_options(save_on_init=False)
@@ -374,7 +378,7 @@ class RouterStats(Entity):
   _compute_stats = Callable(_compute_stats)
 
   def _compute_ranks():
-    tc_session.clear()
+    tc_session.expunge_all()
     min_r = select([func.min(BwHistory.rank)],
         BwHistory.table.c.router_idhex
             == RouterStats.table.c.router_idhex).as_scalar()
