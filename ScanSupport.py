@@ -260,4 +260,15 @@ class SQLScanHandler(ScanHandler):
     cond.release()
     plog("INFO", "Consensus OK")
 
-
+  def reset_stats(self):
+    cond = threading.Condition()
+    def notlambda(this):
+      cond.acquire()
+      ScanHandler.reset_stats(self)
+      SQLSupport.reset_all()
+      cond.notify()
+      cond.release()
+    cond.acquire()
+    self.schedule_low_prio(notlambda)
+    cond.wait()
+    cond.release()
