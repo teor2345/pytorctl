@@ -405,9 +405,18 @@ class RouterStats(Entity):
     #min_avg_rank = select([func.min(RouterStats.avg_rank)]).as_scalar()
     max_avg_rank = select([func.max(RouterStats.avg_rank)]).as_scalar()
 
+    # this query breaks MySQL!
+    #RouterStats.table.update(values=
+    #   {RouterStats.table.c.percentile:
+    #        (100.0*RouterStats.table.c.avg_rank)/max_avg_rank}).execute()
+
+    # I think the problem is the reference to RouterStats.table.c.avg_rank -- let's just replace it with the query used above. I think the nested query will be OK
+    #query('UPDATE routerstats SET percentile=((%s * routerstats.avg_rank) / (SELECT max(routerstats.avg_rank) AS max_1 \nFROM routerstats))' (100.0,))
     RouterStats.table.update(values=
        {RouterStats.table.c.percentile:
-            (100.0*RouterStats.table.c.avg_rank)/max_avg_rank}).execute()
+            (100.0*avg_r)/max_avg_rank}).execute()
+
+
     tc_session.commit()
   _compute_ranks = Callable(_compute_ranks)
 
