@@ -25,7 +25,7 @@ import sqlalchemy
 import sqlalchemy.orm.exc
 from sqlalchemy.orm import scoped_session, sessionmaker, eagerload, lazyload, eagerload_all
 from sqlalchemy import create_engine, and_, or_, not_, func
-from sqlalchemy.sql import func,select
+from sqlalchemy.sql import func,select,alias
 from sqlalchemy.schema import ThreadLocalMetaData,MetaData
 from elixir import *
 from elixir import options
@@ -403,35 +403,44 @@ class RouterStats(Entity):
         RouterStats.table.c.avg_desc_bw:avg_desc_bw}).execute()
 
     #min_avg_rank = select([func.min(RouterStats.avg_rank)]).as_scalar()
-    max_avg_rank = select([func.max(RouterStats.avg_rank)]).as_scalar()
 
-    # this query breaks MySQL!
-    #RouterStats.table.update(values=
-    #   {RouterStats.table.c.percentile:
-    #        (100.0*RouterStats.table.c.avg_rank)/max_avg_rank}).execute()
+    # the commented query breaks mysql because UPDATE cannot reference
+    # target table in the FROM clause. So we throw in an anonymous alias and wrap
+    # another select around it in order to get the nested SELECT stored into a 
+    # temporary table.
+    # FIXME: performance? no idea 
+    #max_avg_rank = select([func.max(RouterStats.avg_rank)]).as_scalar()
+    max_avg_rank = select([alias(select([func.max(RouterStats.avg_rank)]))]).as_scalar()
 
-    # I think the problem is the reference to RouterStats.table.c.avg_rank -- let's just replace it with the query used above. I think the nested query will be OK
-    #query('UPDATE routerstats SET percentile=((%s * routerstats.avg_rank) / (SELECT max(routerstats.avg_rank) AS max_1 \nFROM routerstats))' (100.0,))
     RouterStats.table.update(values=
        {RouterStats.table.c.percentile:
-            (100.0*avg_r)/max_avg_rank}).execute()
-
+            (100.0*RouterStats.table.c.avg_rank)/max_avg_rank}).execute()
 
     tc_session.commit()
   _compute_ranks = Callable(_compute_ranks)
 
   def _compute_ratios(stats_clause):
     tc_session.expunge_all()
-    avg_from_rate = select([func.avg(RouterStats.circ_from_rate)],
-                           stats_clause).as_scalar()
-    avg_to_rate = select([func.avg(RouterStats.circ_to_rate)],
-                           stats_clause).as_scalar()
-    avg_bi_rate = select([func.avg(RouterStats.circ_bi_rate)],
-                           stats_clause).as_scalar()
-    avg_ext = select([func.avg(RouterStats.avg_first_ext)],
-                           stats_clause).as_scalar()
-    avg_sbw = select([func.avg(RouterStats.sbw)],
-                           stats_clause).as_scalar()
+    avg_from_rate = select([alias(
+        select([func.avg(RouterStats.circ_from_rate)],
+                           stats_clause)
+        )]).as_scalar()
+    avg_to_rate = select([alias(
+        select([func.avg(RouterStats.circ_to_rate)],
+                           stats_clause)
+        )]).as_scalar()
+    avg_bi_rate = select([alias(
+        select([func.avg(RouterStats.circ_bi_rate)],
+                           stats_clause)
+        )]).as_scalar()
+    avg_ext = select([alias(
+        select([func.avg(RouterStats.avg_first_ext)],
+                           stats_clause)
+        )]).as_scalar()
+    avg_sbw = select([alias(
+        select([func.avg(RouterStats.sbw)],
+                           stats_clause)
+        )]).as_scalar()
 
     RouterStats.table.update(stats_clause, values=
        {RouterStats.table.c.circ_from_ratio:
