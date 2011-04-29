@@ -25,7 +25,7 @@ import sqlalchemy
 import sqlalchemy.orm.exc
 from sqlalchemy.orm import scoped_session, sessionmaker, eagerload, lazyload, eagerload_all
 from sqlalchemy import create_engine, and_, or_, not_, func
-from sqlalchemy.sql import func,select,alias
+from sqlalchemy.sql import func,select,alias,case
 from sqlalchemy.schema import ThreadLocalMetaData,MetaData
 from elixir import *
 from elixir import options
@@ -328,15 +328,20 @@ class RouterStats(Entity):
        RouterStats.table.c.circ_fail_from:f_from_s,
        RouterStats.table.c.avg_first_ext:avg_ext}).execute()
 
+      # added case() to set NULL and avoid divide-by-zeros (Postgres)
     RouterStats.table.update(stats_clause, values=
       {RouterStats.table.c.circ_from_rate:
-         RouterStats.table.c.circ_fail_from/RouterStats.table.c.circ_try_from,
+          case([(RouterStats.table.c.circ_try_from == 0, None)],
+              else_=(RouterStats.table.c.circ_fail_from/RouterStats.table.c.circ_try_from)),
        RouterStats.table.c.circ_to_rate:
-          RouterStats.table.c.circ_fail_to/RouterStats.table.c.circ_try_to,
+          case([(RouterStats.table.c.circ_try_to == 0, None)],
+              else_=(RouterStats.table.c.circ_fail_to/RouterStats.table.c.circ_try_to)),
        RouterStats.table.c.circ_bi_rate:
-         (RouterStats.table.c.circ_fail_to+RouterStats.table.c.circ_fail_from)
+          case([(RouterStats.table.c.circ_try_to+RouterStats.table.c.circ_try_from == 0, None)],
+           else_=((RouterStats.table.c.circ_fail_to+RouterStats.table.c.circ_fail_from)
                           /
-      (RouterStats.table.c.circ_try_to+RouterStats.table.c.circ_try_from)}).execute()
+                 (RouterStats.table.c.circ_try_to+RouterStats.table.c.circ_try_from))),
+      }).execute()
 
 
     # TODO: Give the streams relation table a sane name and reduce this too
