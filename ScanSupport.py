@@ -266,6 +266,8 @@ class SQLScanHandler(ScanHandler):
       cond.acquire()
       ScanHandler.reset_stats(self)
       SQLSupport.reset_all()
+      this.sql_consensus_listener.update_consensus()
+      this.sql_consensus_listener._update_rank_history(this.sql_consensus_listener.consensus.ns_map.iterkeys())
       cond.notify()
       cond.release()
     cond.acquire()
