@@ -9,8 +9,8 @@ Library to control Tor processes.
 This library handles sending commands, parsing responses, and delivering
 events to and from the control port. The basic usage is to create a
 socket, wrap that in a TorCtl.Connection, and then add an EventHandler
-to that connection. A simple example with a DebugEventHandler (that just
-echoes the events back to stdout) is present in run_example().
+to that connection. For a simple example that prints our BW events (events
+that provide the amount of traffic going over tor) see 'example.py'.
 
 Note that the TorCtl.Connection is fully compatible with the more
 advanced EventHandlers in TorCtl.PathSupport (and of course any other
@@ -1836,56 +1836,4 @@ def parseHostAndPort(h):
       host = h
 
   return host, port
-
-def run_example(host,port):
-  """ Example of basic TorCtl usage. See PathSupport for more advanced
-      usage.
-  """
-  print "host is %s:%d"%(host,port)
-  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  s.connect((host,port))
-  c = Connection(s)
-  c.set_event_handler(DebugEventHandler())
-  th = c.launch_thread()
-  c.authenticate()
-  print "nick",`c.get_option("nickname")`
-  print `c.get_info("version")`
-  #print `c.get_info("desc/name/moria1")`
-  print `c.get_info("network-status")`
-  print `c.get_info("addr-mappings/all")`
-  print `c.get_info("addr-mappings/config")`
-  print `c.get_info("addr-mappings/cache")`
-  print `c.get_info("addr-mappings/control")`
-
-  print `c.extend_circuit(0,["moria1"])`
-  try:
-    print `c.extend_circuit(0,[""])`
-  except ErrorReply: # wtf?
-    print "got error. good."
-  except:
-    print "Strange error", sys.exc_info()[0]
-   
-  #send_signal(s,1)
-  #save_conf(s)
-
-  #set_option(s,"1")
-  #set_option(s,"bandwidthburstbytes 100000")
-  #set_option(s,"runasdaemon 1")
-  #set_events(s,[EVENT_TYPE.WARN])
-#  c.set_events([EVENT_TYPE.ORCONN], True)
-  c.set_events([EVENT_TYPE.STREAM, EVENT_TYPE.CIRC,
-          EVENT_TYPE.NEWCONSENSUS, EVENT_TYPE.NEWDESC,
-          EVENT_TYPE.ORCONN, EVENT_TYPE.BW], True)
-
-  th.join()
-  return
-
-if __name__ == '__main__':
-  if len(sys.argv) > 2:
-    print "Syntax: TorControl.py torhost:torport"
-    sys.exit(0)
-  else:
-    sys.argv.append("localhost:9051")
-  sh,sp = parseHostAndPort(sys.argv[1])
-  run_example(sh,sp)
 
