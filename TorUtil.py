@@ -231,7 +231,12 @@ class BufSock:
 
   def close(self):
     self._isDone = True
-    self._s.shutdown(socket.SHUT_RDWR)
+
+    # if we haven't yet established a connection then this raises an error
+    # socket.error: [Errno 107] Transport endpoint is not connected
+    try: self._s.shutdown(socket.SHUT_RDWR)
+    except socket.error: pass
+
     self._s.close()
 
 # SocketServer.TCPServer is nuts.. 

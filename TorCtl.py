@@ -590,8 +590,9 @@ class Connection:
       # check PROTOCOLINFO for authentication type
       try:
         authInfo = self.sendAndRecv("PROTOCOLINFO\r\n")[1][1]
-      except ErrorReply, exc:
-        raise IOError("Unable to query PROTOCOLINFO for the authentication type: %s" % exc)
+      except Exception, exc:
+        excMsg = ": %s" % exc if exc.message else ""
+        raise IOError("Unable to query PROTOCOLINFO for the authentication type%s" % excMsg)
       
       authType, cookiePath = None, None
       if authInfo.startswith("AUTH METHODS=NULL"):
