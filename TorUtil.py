@@ -208,6 +208,7 @@ class BufSock:
         s = self._s.recv(128)
       except socket.timeout:
         if not self._isDone: continue
+      except: s = None
 
       if not s: return None
       # XXX: This really does need an exception

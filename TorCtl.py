@@ -681,8 +681,18 @@ class Connection:
     while 1:
       try:
         isEvent, reply = self._read_reply()
-      except TorCtlClosed:
+      except TorCtlClosed, exc:
         plog("NOTICE", "Tor closed control connection. Exiting event thread.")
+
+        # notify anything blocking on a response of the error, for details see:
+        # https://trac.torproject.org/projects/tor/ticket/1329
+        try:
+          self._closedEx = exc
+          cb = self._queue.get(timeout=0)
+          if cb != "CLOSE":
+            cb("EXCEPTION")
+        except Queue.Empty: pass
+
         return
       except Exception,e:
         if not self._closed:
