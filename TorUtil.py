@@ -188,6 +188,10 @@ def unescape_dots(s, translate_nl=1):
 # XXX: Exception handling
 class BufSock:
   def __init__(self, s):
+    # sets a timeout on our recv operations
+    s.settimeout(0.02)
+    self._isDone = False
+
     self._s = s
     self._buf = []
 
@@ -200,7 +204,11 @@ class BufSock:
         return result
 
     while 1:
-      s = self._s.recv(128)
+      try:
+        s = self._s.recv(128)
+      except socket.timeout:
+        if not self._isDone: continue
+
       if not s: return None
       # XXX: This really does need an exception
       #  raise ConnectionClosed()
@@ -221,6 +229,7 @@ class BufSock:
     self._s.send(s)
 
   def close(self):
+    self._isDone = True
     self._s.close()
 
 # SocketServer.TCPServer is nuts.. 

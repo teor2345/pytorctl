@@ -642,11 +642,8 @@ class Connection:
       self._queue.put("CLOSE")
       self._eventQueue.put((time.time(), "CLOSE"))
       self._closed = 1
-      # XXX: For some reason, this does not cause the readline in
-      # self._read_reply() to return immediately. The _loop() thread
-      # thus tends to stick around until some event causes data to come
-      # back...
       self._s.close()
+      self._thread.join()
       self._eventThread.join()
     finally:
       self._sendLock.release()
