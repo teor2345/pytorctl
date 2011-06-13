@@ -109,6 +109,7 @@ def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
                   than prompting the user)
   """
   
+  conn = None
   try:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((controlAddr, controlPort))
@@ -132,8 +133,11 @@ def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
       print "Connection refused. Is the ControlPort enabled?"
     else: print "Failed to establish socket: %s" % exc
     
+    if conn: conn.close()
     return None
   except Exception, exc:
+    if conn: conn.close()
+
     if passphrase and str(exc) == "Unable to authenticate: password incorrect":
       # provide a warning that the provided password didn't work, then try
       # again prompting for the user to enter it

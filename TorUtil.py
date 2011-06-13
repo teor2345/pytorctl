@@ -230,6 +230,7 @@ class BufSock:
 
   def close(self):
     self._isDone = True
+    self._s.shutdown(socket.SHUT_RDWR)
     self._s.close()
 
 # SocketServer.TCPServer is nuts.. 
