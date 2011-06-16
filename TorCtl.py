@@ -108,36 +108,20 @@ def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
     passphrase  - authentication passphrase (if defined this is used rather
                   than prompting the user)
   """
-  
-  conn = None
+
   try:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((controlAddr, controlPort))
-    conn = Connection(s)
-    authType, authValue = conn.get_auth_type(), ""
-    
+    conn, authType, authValue = connectionComp(controlAddr, controlPort)
+
     if authType == AUTH_TYPE.PASSWORD:
       # password authentication, promting for the password if it wasn't provided
       if passphrase: authValue = passphrase
       else:
         try: authValue = getpass.getpass()
         except KeyboardInterrupt: return None
-    elif authType == AUTH_TYPE.COOKIE:
-      authValue = conn.get_auth_cookie_path()
-    
+
     conn.authenticate(authValue)
     return conn
-  except socket.error, exc:
-    if "Connection refused" in exc.args:
-      # most common case - tor control port isn't available
-      print "Connection refused. Is the ControlPort enabled?"
-    else: print "Failed to establish socket: %s" % exc
-    
-    if conn: conn.close()
-    return None
   except Exception, exc:
-    if conn: conn.close()
-
     if passphrase and str(exc) == "Unable to authenticate: password incorrect":
       # provide a warning that the provided password didn't work, then try
       # again prompting for the user to enter it
@@ -146,6 +130,44 @@ def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
     else:
       print exc
       return None
+
+def connectionComp(controlAddr="127.0.0.1", controlPort=9051):
+  """
+  Provides an uninitiated torctl connection components for the control port,
+  returning a tuple of the form...
+  (torctl connection, authType, authValue)
+
+  The authValue corresponds to the cookie path if using an authentication
+  cookie, otherwise this is the empty string. This raises an IOError in case
+  of failure.
+
+  Arguments:
+    controlAddr - ip address belonging to the controller
+    controlPort - port belonging to the controller
+  """
+
+  conn = None
+  try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((controlAddr, controlPort))
+    conn = Connection(s)
+    authType, authValue = conn.get_auth_type(), ""
+
+    if authType == AUTH_TYPE.COOKIE:
+      authValue = conn.get_auth_cookie_path()
+
+    return (conn, authType, authValue)
+  except socket.error, exc:
+    if conn: conn.close()
+
+    if "Connection refused" in exc.args:
+      # most common case - tor control port isn't available
+      raise IOError("Connection refused. Is the ControlPort enabled?")
+
+    raise IOError("Failed to establish socket: %s" % exc)
+  except Exception, exc:
+    if conn: conn.close()
+    raise IOError(exc)
 
 class TorCtlError(Exception):
   "Generic error raised by TorControl code."
