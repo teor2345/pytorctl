@@ -1040,10 +1040,21 @@ class Connection:
        TorCtl.NetworkStatus instances."""
     return parse_ns_body(self.sendAndRecv("GETINFO dir/status-vote/current/consensus\r\n")[0][2])
 
-  def get_network_status(self, who="all"):
+  def get_network_status(self, who="all", getIterator=False):
     """Get the entire network status list. Returns a list of
-       TorCtl.NetworkStatus instances."""
-    return parse_ns_body(self.sendAndRecv("GETINFO ns/"+who+"\r\n")[0][2])
+       TorCtl.NetworkStatus instances.
+
+       Be aware that by default this reads the whole consensus into memory at
+       once which can be fairly sizable (as of writing 3.5 MB), and even if
+       freed it may remain allocated to the interpretor:
+       http://effbot.org/pyfaq/why-doesnt-python-release-the-memory-when-i-delete-a-large-object.htm
+
+       To avoid this use the iterator instead.
+      """
+
+    nsData = self.sendAndRecv("GETINFO ns/"+who+"\r\n")[0][2]
+    if getIterator: return ns_body_iter(nsData)
+    else: return parse_ns_body(nsData)
 
   def get_address_mappings(self, type="all"):
     # TODO: Also parse errors and GMTExpiry
@@ -1232,21 +1243,26 @@ class Connection:
 def parse_ns_body(data):
   """Parse the body of an NS event or command into a list of
      NetworkStatus instances"""
-  if not data: return []
-  nsgroups = re.compile(r"^r ", re.M).split(data)
-  nsgroups.pop(0)
-  nslist = []
-  for nsline in nsgroups:
-    m = re.search(r"^s((?:[ ]\S*)+)", nsline, re.M)
-    flags = m.groups()
-    flags = flags[0].strip().split(" ")
-    m = re.match(r"(\S+)\s(\S+)\s(\S+)\s(\S+\s\S+)\s(\S+)\s(\d+)\s(\d+)", nsline)    
-    w = re.search(r"^w Bandwidth=(\d+)", nsline, re.M)
-    if w:
-      nslist.append(NetworkStatus(*(m.groups()+(flags,)+(int(w.group(1))*1000,))))
-    else:
-      nslist.append(NetworkStatus(*(m.groups() + (flags,))))
-  return nslist
+  return list(ns_body_iter(data))
+
+def ns_body_iter(data):
+  """Generator for NetworkStatus instances of an NS event"""
+  if data:
+    nsgroups = re.compile(r"^r ", re.M).split(data)
+    nsgroups.pop(0)
+
+    while nsgroups:
+      nsline = nsgroups.pop(0)
+      m = re.search(r"^s((?:[ ]\S*)+)", nsline, re.M)
+      flags = m.groups()
+      flags = flags[0].strip().split(" ")
+      m = re.match(r"(\S+)\s(\S+)\s(\S+)\s(\S+\s\S+)\s(\S+)\s(\d+)\s(\d+)", nsline)
+      w = re.search(r"^w Bandwidth=(\d+)", nsline, re.M)
+
+      if w:
+        yield NetworkStatus(*(m.groups()+(flags,)+(int(w.group(1))*1000,)))
+      else:
+        yield NetworkStatus(*(m.groups() + (flags,)))
 
 class EventSink:
   def heartbeat_event(self, event): pass
@@ -1687,7 +1703,7 @@ class ConsensusTracker(EventHandler):
     if self.consensus_only:
       self._update_consensus(self.c.get_consensus())
     else:
-      self._update_consensus(self.c.get_network_status())
+      self._update_consensus(self.c.get_network_status(getIterator=True))
     self._read_routers(self.ns_map.values())
 
   def new_consensus_event(self, n):
