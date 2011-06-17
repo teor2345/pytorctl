@@ -109,6 +109,7 @@ def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
                   than prompting the user)
   """
 
+  conn = None
   try:
     conn, authType, authValue = connectionComp(controlAddr, controlPort)
 
@@ -122,6 +123,8 @@ def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
     conn.authenticate(authValue)
     return conn
   except Exception, exc:
+    if conn: conn.close()
+
     if passphrase and str(exc) == "Unable to authenticate: password incorrect":
       # provide a warning that the provided password didn't work, then try
       # again prompting for the user to enter it
