@@ -35,7 +35,7 @@ __all__ = ["EVENT_TYPE", "connect", "TorCtlError", "TorCtlClosed",
            "NewDescEvent", "CircuitEvent", "StreamEvent", "ORConnEvent",
            "StreamBwEvent", "LogEvent", "AddrMapEvent", "BWEvent",
            "BuildTimeoutSetEvent", "UnknownEvent", "ConsensusTracker",
-           "EventListener", "EVENT_STATE" ]
+           "EventListener", "EVENT_STATE", "ns_body_iter" ]
 
 import os
 import re
@@ -111,7 +111,7 @@ def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
 
   conn = None
   try:
-    conn, authType, authValue = connectionComp(controlAddr, controlPort)
+    conn, authType, authValue = _make_connection(controlAddr, controlPort)
 
     if authType == AUTH_TYPE.PASSWORD:
       # password authentication, promting for the password if it wasn't provided
@@ -134,7 +134,7 @@ def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
       print exc
       return None
 
-def connectionComp(controlAddr="127.0.0.1", controlPort=9051):
+def _make_connection(controlAddr="127.0.0.1", controlPort=9051):
   """
   Provides an uninitiated torctl connection components for the control port,
   returning a tuple of the form...
