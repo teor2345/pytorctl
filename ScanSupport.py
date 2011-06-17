@@ -182,7 +182,7 @@ class SQLScanHandler(ScanHandler):
     ScanHandler.__init__(self, c, selmgr, RouterClass, strm_selector)
 
   def attach_sql_listener(self, db_uri):
-    plog("DEBUG", "Got sqlite: "+db_uri)
+    plog("DEBUG", "Got db: "+db_uri)
     SQLSupport.setup_db(db_uri, echo=False, drop=True)
     self.sql_consensus_listener = SQLSupport.ConsensusTrackerListener()
     self.add_event_listener(self.sql_consensus_listener)
