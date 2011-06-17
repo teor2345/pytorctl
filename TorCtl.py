@@ -1060,12 +1060,23 @@ class Connection:
     """
     return self.sendAndRecv("RESETCONF %s\r\n"%(" ".join(keylist)))
 
-  def get_consensus(self):
+  def get_consensus(self, get_iterator=False):
     """Get the pristine Tor Consensus. Returns a list of
-       TorCtl.NetworkStatus instances."""
-    return parse_ns_body(self.sendAndRecv("GETINFO dir/status-vote/current/consensus\r\n")[0][2])
+       TorCtl.NetworkStatus instances.
 
-  def get_network_status(self, who="all", getIterator=False):
+       Be aware that by default this reads the whole consensus into memory at
+       once which can be fairly sizable (as of writing 3.5 MB), and even if
+       freed it may remain allocated to the interpretor:
+       http://effbot.org/pyfaq/why-doesnt-python-release-the-memory-when-i-delete-a-large-object.htm
+
+       To avoid this use the iterator instead.
+    """
+
+    nsData = self.sendAndRecv("GETINFO dir/status-vote/current/consensus\r\n")[0][2]
+    if get_iterator: return ns_body_iter(nsData)
+    else: return parse_ns_body(nsData)
+
+  def get_network_status(self, who="all", get_iterator=False):
     """Get the entire network status list. Returns a list of
        TorCtl.NetworkStatus instances.
 
@@ -1078,7 +1089,7 @@ class Connection:
       """
 
     nsData = self.sendAndRecv("GETINFO ns/"+who+"\r\n")[0][2]
-    if getIterator: return ns_body_iter(nsData)
+    if get_iterator: return ns_body_iter(nsData)
     else: return parse_ns_body(nsData)
 
   def get_address_mappings(self, type="all"):
@@ -1728,7 +1739,7 @@ class ConsensusTracker(EventHandler):
     if self.consensus_only:
       self._update_consensus(self.c.get_consensus())
     else:
-      self._update_consensus(self.c.get_network_status(getIterator=True))
+      self._update_consensus(self.c.get_network_status(get_iterator=True))
     self._read_routers(self.ns_map.values())
 
   def new_consensus_event(self, n):
