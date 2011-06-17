@@ -200,7 +200,8 @@ class BufSock:
         return result
 
     while 1:
-      s = self._s.recv(128)
+      try: s = self._s.recv(128)
+      except: s = None
 
       if not s: return None
       # XXX: This really does need an exception
@@ -222,7 +223,11 @@ class BufSock:
     self._s.send(s)
 
   def close(self):
-    self._s.shutdown(socket.SHUT_RDWR)
+    # if we haven't yet established a connection then this raises an error
+    # socket.error: [Errno 107] Transport endpoint is not connected
+    try: self._s.shutdown(socket.SHUT_RDWR)
+    except socket.error: pass
+
     self._s.close()
 
 # SocketServer.TCPServer is nuts.. 
