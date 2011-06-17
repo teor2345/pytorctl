@@ -9,8 +9,8 @@ Library to control Tor processes.
 This library handles sending commands, parsing responses, and delivering
 events to and from the control port. The basic usage is to create a
 socket, wrap that in a TorCtl.Connection, and then add an EventHandler
-to that connection. A simple example with a DebugEventHandler (that just
-echoes the events back to stdout) is present in run_example().
+to that connection. For a simple example that prints our BW events (events
+that provide the amount of traffic going over tor) see 'example.py'.
 
 Note that the TorCtl.Connection is fully compatible with the more
 advanced EventHandlers in TorCtl.PathSupport (and of course any other
@@ -108,33 +108,20 @@ def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
     passphrase  - authentication passphrase (if defined this is used rather
                   than prompting the user)
   """
-  
+
   conn = None
   try:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((controlAddr, controlPort))
-    conn = Connection(s)
-    authType, authValue = conn.get_auth_type(), ""
-    
+    conn, authType, authValue = connectionComp(controlAddr, controlPort)
+
     if authType == AUTH_TYPE.PASSWORD:
       # password authentication, promting for the password if it wasn't provided
       if passphrase: authValue = passphrase
       else:
         try: authValue = getpass.getpass()
         except KeyboardInterrupt: return None
-    elif authType == AUTH_TYPE.COOKIE:
-      authValue = conn.get_auth_cookie_path()
-    
+
     conn.authenticate(authValue)
     return conn
-  except socket.error, exc:
-    if "Connection refused" in exc.args:
-      # most common case - tor control port isn't available
-      print "Connection refused. Is the ControlPort enabled?"
-    else: print "Failed to establish socket: %s" % exc
-    
-    if conn: conn.close()
-    return None
   except Exception, exc:
     if conn: conn.close()
 
@@ -146,6 +133,44 @@ def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
     else:
       print exc
       return None
+
+def connectionComp(controlAddr="127.0.0.1", controlPort=9051):
+  """
+  Provides an uninitiated torctl connection components for the control port,
+  returning a tuple of the form...
+  (torctl connection, authType, authValue)
+
+  The authValue corresponds to the cookie path if using an authentication
+  cookie, otherwise this is the empty string. This raises an IOError in case
+  of failure.
+
+  Arguments:
+    controlAddr - ip address belonging to the controller
+    controlPort - port belonging to the controller
+  """
+
+  conn = None
+  try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((controlAddr, controlPort))
+    conn = Connection(s)
+    authType, authValue = conn.get_auth_type(), ""
+
+    if authType == AUTH_TYPE.COOKIE:
+      authValue = conn.get_auth_cookie_path()
+
+    return (conn, authType, authValue)
+  except socket.error, exc:
+    if conn: conn.close()
+
+    if "Connection refused" in exc.args:
+      # most common case - tor control port isn't available
+      raise IOError("Connection refused. Is the ControlPort enabled?")
+
+    raise IOError("Failed to establish socket: %s" % exc)
+  except Exception, exc:
+    if conn: conn.close()
+    raise IOError(exc)
 
 class TorCtlError(Exception):
   "Generic error raised by TorControl code."
@@ -590,8 +615,9 @@ class Connection:
       # check PROTOCOLINFO for authentication type
       try:
         authInfo = self.sendAndRecv("PROTOCOLINFO\r\n")[1][1]
-      except ErrorReply, exc:
-        raise IOError("Unable to query PROTOCOLINFO for the authentication type: %s" % exc)
+      except Exception, exc:
+        excMsg = ": %s" % exc if exc.message else ""
+        raise IOError("Unable to query PROTOCOLINFO for the authentication type%s" % excMsg)
       
       authType, cookiePath = None, None
       if authInfo.startswith("AUTH METHODS=NULL"):
@@ -681,8 +707,18 @@ class Connection:
     while 1:
       try:
         isEvent, reply = self._read_reply()
-      except TorCtlClosed:
+      except TorCtlClosed, exc:
         plog("NOTICE", "Tor closed control connection. Exiting event thread.")
+
+        # notify anything blocking on a response of the error, for details see:
+        # https://trac.torproject.org/projects/tor/ticket/1329
+        try:
+          self._closedEx = exc
+          cb = self._queue.get(timeout=0)
+          if cb != "CLOSE":
+            cb("EXCEPTION")
+        except Queue.Empty: pass
+
         return
       except Exception,e:
         if not self._closed:
@@ -1029,10 +1065,21 @@ class Connection:
        TorCtl.NetworkStatus instances."""
     return parse_ns_body(self.sendAndRecv("GETINFO dir/status-vote/current/consensus\r\n")[0][2])
 
-  def get_network_status(self, who="all"):
+  def get_network_status(self, who="all", getIterator=False):
     """Get the entire network status list. Returns a list of
-       TorCtl.NetworkStatus instances."""
-    return parse_ns_body(self.sendAndRecv("GETINFO ns/"+who+"\r\n")[0][2])
+       TorCtl.NetworkStatus instances.
+
+       Be aware that by default this reads the whole consensus into memory at
+       once which can be fairly sizable (as of writing 3.5 MB), and even if
+       freed it may remain allocated to the interpretor:
+       http://effbot.org/pyfaq/why-doesnt-python-release-the-memory-when-i-delete-a-large-object.htm
+
+       To avoid this use the iterator instead.
+      """
+
+    nsData = self.sendAndRecv("GETINFO ns/"+who+"\r\n")[0][2]
+    if getIterator: return ns_body_iter(nsData)
+    else: return parse_ns_body(nsData)
 
   def get_address_mappings(self, type="all"):
     # TODO: Also parse errors and GMTExpiry
@@ -1221,21 +1268,26 @@ class Connection:
 def parse_ns_body(data):
   """Parse the body of an NS event or command into a list of
      NetworkStatus instances"""
-  if not data: return []
-  nsgroups = re.compile(r"^r ", re.M).split(data)
-  nsgroups.pop(0)
-  nslist = []
-  for nsline in nsgroups:
-    m = re.search(r"^s((?:[ ]\S*)+)", nsline, re.M)
-    flags = m.groups()
-    flags = flags[0].strip().split(" ")
-    m = re.match(r"(\S+)\s(\S+)\s(\S+)\s(\S+\s\S+)\s(\S+)\s(\d+)\s(\d+)", nsline)    
-    w = re.search(r"^w Bandwidth=(\d+)", nsline, re.M)
-    if w:
-      nslist.append(NetworkStatus(*(m.groups()+(flags,)+(int(w.group(1))*1000,))))
-    else:
-      nslist.append(NetworkStatus(*(m.groups() + (flags,))))
-  return nslist
+  return list(ns_body_iter(data))
+
+def ns_body_iter(data):
+  """Generator for NetworkStatus instances of an NS event"""
+  if data:
+    nsgroups = re.compile(r"^r ", re.M).split(data)
+    nsgroups.pop(0)
+
+    while nsgroups:
+      nsline = nsgroups.pop(0)
+      m = re.search(r"^s((?:[ ]\S*)+)", nsline, re.M)
+      flags = m.groups()
+      flags = flags[0].strip().split(" ")
+      m = re.match(r"(\S+)\s(\S+)\s(\S+)\s(\S+\s\S+)\s(\S+)\s(\d+)\s(\d+)", nsline)
+      w = re.search(r"^w Bandwidth=(\d+)", nsline, re.M)
+
+      if w:
+        yield NetworkStatus(*(m.groups()+(flags,)+(int(w.group(1))*1000,)))
+      else:
+        yield NetworkStatus(*(m.groups() + (flags,)))
 
 class EventSink:
   def heartbeat_event(self, event): pass
@@ -1676,7 +1728,7 @@ class ConsensusTracker(EventHandler):
     if self.consensus_only:
       self._update_consensus(self.c.get_consensus())
     else:
-      self._update_consensus(self.c.get_network_status())
+      self._update_consensus(self.c.get_network_status(getIterator=True))
     self._read_routers(self.ns_map.values())
 
   def new_consensus_event(self, n):
@@ -1836,56 +1888,4 @@ def parseHostAndPort(h):
       host = h
 
   return host, port
-
-def run_example(host,port):
-  """ Example of basic TorCtl usage. See PathSupport for more advanced
-      usage.
-  """
-  print "host is %s:%d"%(host,port)
-  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  s.connect((host,port))
-  c = Connection(s)
-  c.set_event_handler(DebugEventHandler())
-  th = c.launch_thread()
-  c.authenticate()
-  print "nick",`c.get_option("nickname")`
-  print `c.get_info("version")`
-  #print `c.get_info("desc/name/moria1")`
-  print `c.get_info("network-status")`
-  print `c.get_info("addr-mappings/all")`
-  print `c.get_info("addr-mappings/config")`
-  print `c.get_info("addr-mappings/cache")`
-  print `c.get_info("addr-mappings/control")`
-
-  print `c.extend_circuit(0,["moria1"])`
-  try:
-    print `c.extend_circuit(0,[""])`
-  except ErrorReply: # wtf?
-    print "got error. good."
-  except:
-    print "Strange error", sys.exc_info()[0]
-   
-  #send_signal(s,1)
-  #save_conf(s)
-
-  #set_option(s,"1")
-  #set_option(s,"bandwidthburstbytes 100000")
-  #set_option(s,"runasdaemon 1")
-  #set_events(s,[EVENT_TYPE.WARN])
-#  c.set_events([EVENT_TYPE.ORCONN], True)
-  c.set_events([EVENT_TYPE.STREAM, EVENT_TYPE.CIRC,
-          EVENT_TYPE.NEWCONSENSUS, EVENT_TYPE.NEWDESC,
-          EVENT_TYPE.ORCONN, EVENT_TYPE.BW], True)
-
-  th.join()
-  return
-
-if __name__ == '__main__':
-  if len(sys.argv) > 2:
-    print "Syntax: TorControl.py torhost:torport"
-    sys.exit(0)
-  else:
-    sys.argv.append("localhost:9051")
-  sh,sp = parseHostAndPort(sys.argv[1])
-  run_example(sh,sp)
 
