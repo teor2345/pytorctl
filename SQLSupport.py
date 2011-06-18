@@ -568,6 +568,7 @@ class RouterStats(Entity):
     def cvt(a,b,c=1):
       if type(a) == float: return round(a/c,b)
       elif type(a) == int: return a
+      elif type(a) == long: return a
       elif type(a) == type(None): return "None"
       else: return type(a)
 
