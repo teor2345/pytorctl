@@ -617,7 +617,8 @@ class Connection:
       try:
         authInfo = self.sendAndRecv("PROTOCOLINFO\r\n")[1][1]
       except Exception, exc:
-        excMsg = ": %s" % exc if exc.message else ""
+        if exc.message: excMsg = ": %s" % exc
+        else: excMsg = ""
         raise IOError("Unable to query PROTOCOLINFO for the authentication type%s" % excMsg)
       
       authType, cookiePath = None, None
