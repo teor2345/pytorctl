@@ -657,7 +657,13 @@ class RouterStats(Entity):
 
 #################### Model Support ################
 def reset_all():
+  plog("WARN", "SQLSupport.reset_all() called. See SQLSupport.py for details")
   # Need to keep routers around.. 
+  # WARNING!
+  # Must keep the routers around because circ_status_event may
+  # reference old Routers that are no longer in consensus
+  # and will raise an ObjectDeletedError. See function circ_status_event in
+  # class CircuitListener in SQLSupport.py
   for r in Router.query.all():
     # This appears to be needed. the relation tables do not get dropped 
     # automatically.
@@ -670,6 +676,16 @@ def reset_all():
 
   tc_session.commit()
   tc_session.expunge_all()
+
+  # WARNING!
+  # May not clear relation all tables! (SQLAlchemy or Elixir bug)
+  # Try: 
+  # tc_session.execute('delete from router_streams__stream;')
+
+  # WARNING!
+  # This will cause Postgres databases to hang
+  # on DROP TABLE. Possibly an issue with cascade.
+  # Sqlite works though.
 
   BwHistory.table.drop() # Will drop subclasses
   Extension.table.drop()
@@ -690,6 +706,17 @@ def reset_all():
   #    plog("WARN", "Router still has dropped data!")
 
   plog("NOTICE", "Reset all SQL stats")
+
+def refresh_all():
+  # necessary to keep all sessions synchronized
+  # This is probably a bug. See reset_all() above.
+  # Call this after update_consensus(), _update_rank_history()
+  # See: ScanSupport.reset_stats()
+  # Could be a cascade problem too, see:
+  # http://stackoverflow.com/questions/3481976/sqlalchemy-objectdeletederror-instance-class-at-has-been-deleted-help
+  # Also see:
+  # http://groups.google.com/group/sqlalchemy/browse_thread/thread/c9099eaaffd7c348
+  [tc_session.refresh(r) for r in Router.query.all()]
 
 ##################### End Model Support ####################
 
