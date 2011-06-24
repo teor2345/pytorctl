@@ -229,6 +229,27 @@ class PercentileRestriction(NodeRestriction):
   def __str__(self):
     return self.__class__.__name__+"("+str(self.pct_skip)+","+str(self.pct_fast)+")"
 
+class RatioPercentileRestriction(NodeRestriction):
+  """Restriction to cut out a percentile slice of the network by ratio of
+     consensus bw to descriptor bw."""
+  def __init__(self, pct_skip, pct_fast, r_list):
+    """Constructor. Sets up the restriction such that routers in the
+     'pct_skip' to 'pct_fast' percentile of bandwidth rankings are
+     returned from the sorted list 'r_list'"""
+    self.pct_fast = pct_fast
+    self.pct_skip = pct_skip
+    self.sorted_r = r_list
+
+  def r_is_ok(self, r):
+    "Returns true if r is in the percentile boundaries (by rank)"
+    if r.ratio_rank < len(self.sorted_r)*self.pct_skip/100: return False
+    elif r.ratio_rank > len(self.sorted_r)*self.pct_fast/100: return False
+
+    return True
+
+  def __str__(self):
+    return self.__class__.__name__+"("+str(self.pct_skip)+","+str(self.pct_fast)+")"
+
 class UptimeRestriction(NodeRestriction):
   """Restriction to filter out routers with uptimes < min_uptime or
      > max_uptime"""
@@ -1008,7 +1029,8 @@ class SelectionManager(BaseSelectionManager):
   def __init__(self, pathlen, order_exits,
          percent_fast, percent_skip, min_bw, use_all_exits,
          uniform, use_exit, use_guards,geoip_config=None,
-         restrict_guards=False, extra_node_rstr=None, exit_ports=None):
+         restrict_guards=False, extra_node_rstr=None, exit_ports=None,
+         order_by_ratio=False):
     BaseSelectionManager.__init__(self)
     self.__ordered_exit_gen = None 
     self.pathlen = pathlen
@@ -1026,6 +1048,7 @@ class SelectionManager(BaseSelectionManager):
     self.consensus = None
     self.exit_ports = exit_ports
     self.extra_node_rstr=extra_node_rstr
+    self.order_by_ratio = order_by_ratio
 
   def reconfigure(self, consensus=None):
     try:
@@ -1063,17 +1086,22 @@ class SelectionManager(BaseSelectionManager):
       nonentry_skip = self.percent_skip
       nonentry_fast = self.percent_fast
 
+    if self.order_by_ratio:
+      PctRstr = RatioPercentileRestriction
+    else:
+      PctRstr = PercentileRestriction
+
     # XXX: sometimes we want the ability to do uniform scans
     # without the conserve exit restrictions..
     entry_rstr = NodeRestrictionList(
-      [PercentileRestriction(self.percent_skip, self.percent_fast, sorted_r),
+      [PctRstr(self.percent_skip, self.percent_fast, sorted_r),
        OrNodeRestriction(
            [FlagsRestriction(["BadExit"]),
            ConserveExitsRestriction(self.exit_ports)]),
        FlagsRestriction(entry_flags, [])]
     )
     mid_rstr = NodeRestrictionList(
-      [PercentileRestriction(nonentry_skip, nonentry_fast, sorted_r),
+      [PctRstr(nonentry_skip, nonentry_fast, sorted_r),
        OrNodeRestriction(
            [FlagsRestriction(["BadExit"]),
            ConserveExitsRestriction(self.exit_ports)]),
@@ -1090,7 +1118,7 @@ class SelectionManager(BaseSelectionManager):
         [FlagsRestriction(["Running","Fast"], ["BadExit"])])
     else:
       self.exit_rstr = NodeRestrictionList(
-        [PercentileRestriction(nonentry_skip, nonentry_fast, sorted_r),
+        [PctRstr(nonentry_skip, nonentry_fast, sorted_r),
          FlagsRestriction(["Running","Fast"], ["BadExit"])])
 
     if self.extra_node_rstr:

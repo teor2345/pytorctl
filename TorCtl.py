@@ -460,6 +460,7 @@ class Router:
     self.version = RouterVersion(version)
     self.os = os
     self.list_rank = 0 # position in a sorted list of routers.
+    self.ratio_rank = 0 # position in a ratio-sorted list of routers
     self.uptime = uptime
     self.published = published
     self.refcount = 0 # How many open circs are we currently in?
@@ -1709,6 +1710,11 @@ class ConsensusTracker(EventHandler):
     self.sorted_r.sort(lambda x, y: cmp(y.bw, x.bw))
     for i in xrange(len(self.sorted_r)): self.sorted_r[i].list_rank = i
 
+    ratio_r = copy.copy(self.sorted_r)
+    ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.desc_bw,
+                                  float(x.bw)/x.desc_bw))
+    for i in xrange(len(ratio_r)): ratio_r[i].ratio_rank = i
+
     # XXX: Verification only. Can be removed.
     self._sanity_check(self.sorted_r)
 
@@ -1792,6 +1798,11 @@ class ConsensusTracker(EventHandler):
       self.sorted_r = filter(lambda r: not r.down, self.routers.itervalues())
       self.sorted_r.sort(lambda x, y: cmp(y.bw, x.bw))
       for i in xrange(len(self.sorted_r)): self.sorted_r[i].list_rank = i
+
+      ratio_r = copy.copy(self.sorted_r)
+      ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.desc_bw,
+                                    float(x.bw)/x.desc_bw))
+      for i in xrange(len(ratio_r)): ratio_r[i].ratio_rank = i
     plog("DEBUG", str(time.time()-d.arrived_at)+ " Read " + str(len(d.idlist))
        +" ND => "+str(len(self.sorted_r))+" routers. Update: "+str(update))
     # XXX: Verification only. Can be removed.
@@ -1821,6 +1832,11 @@ class ConsensusTracker(EventHandler):
       self.sorted_r = filter(lambda r: not r.down, self.routers.itervalues())
       self.sorted_r.sort(lambda x, y: cmp(y.bw, x.bw))
       for i in xrange(len(self.sorted_r)): self.sorted_r[i].list_rank = i
+
+      ratio_r = copy.copy(self.sorted_r)
+      ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.desc_bw,
+                                    float(x.bw)/x.desc_bw))
+      for i in xrange(len(ratio_r)): ratio_r[i].ratio_rank = i
     self._sanity_check(self.sorted_r)
 
   def current_consensus(self):
