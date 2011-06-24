@@ -658,8 +658,12 @@ class RouterStats(Entity):
 #################### Model Support ################
 def reset_all():
   plog("WARN", "SQLSupport.reset_all() called. See SQLSupport.py for details")
-  # Need to keep routers around.. 
-  # WARNING!
+  # XXX: We still have a memory leak somewhere in here
+  # Current suspects are sqlite, python-sqlite, or sqlalchemy misuse...
+  # http://stackoverflow.com/questions/5552932/sqlalchemy-misuse-causing-memory-leak
+  # The bandwidth scanners switched to a parent/child model because of this.
+
+  # XXX: WARNING!
   # Must keep the routers around because circ_status_event may
   # reference old Routers that are no longer in consensus
   # and will raise an ObjectDeletedError. See function circ_status_event in
@@ -677,12 +681,13 @@ def reset_all():
   tc_session.commit()
   tc_session.expunge_all()
 
-  # WARNING!
+  # XXX: WARNING!
   # May not clear relation all tables! (SQLAlchemy or Elixir bug)
   # Try: 
   # tc_session.execute('delete from router_streams__stream;')
 
-  # WARNING!
+
+  # XXX: WARNING!
   # This will cause Postgres databases to hang
   # on DROP TABLE. Possibly an issue with cascade.
   # Sqlite works though.
