@@ -25,9 +25,13 @@ import sqlalchemy
 import sqlalchemy.orm.exc
 from sqlalchemy.orm import scoped_session, sessionmaker, eagerload, lazyload, eagerload_all
 from sqlalchemy import create_engine, and_, or_, not_, func
-from sqlalchemy.sql import func,select
+from sqlalchemy.sql import func,select,alias,case
 from sqlalchemy.schema import ThreadLocalMetaData,MetaData
 from elixir import *
+from elixir import options
+# migrate from elixir 06 to 07
+options.MIGRATION_TO_07_AID = True
+
 
 # Nodes with a ratio below this value will be removed from consideration
 # for higher-valued nodes
@@ -58,6 +62,10 @@ def setup_db(db_uri, echo=False, drop=False):
     # DIAF SQLAlchemy. A token gesture at backwards compatibility
     # wouldn't kill you, you know.
     tc_session.add = tc_session.save_or_update
+
+  if sqlalchemy.__version__ < "0.6.0":
+    # clear() replaced with expunge_all
+    tc_session.clear = tc_session.expunge_all
 
 class Router(Entity):
   using_options(shortnames=True, order_by='-published', session=tc_session, metadata=tc_metadata)
@@ -291,7 +299,7 @@ class RouterStats(Entity):
   _compute_stats_relation = Callable(_compute_stats_relation)
 
   def _compute_stats_query(stats_clause):
-    tc_session.clear()
+    tc_session.expunge_all()
     # http://www.sqlalchemy.org/docs/04/sqlexpression.html#sql_update
     to_s = select([func.count(Extension.id)], 
         and_(stats_clause, Extension.table.c.to_node_idhex
@@ -320,15 +328,20 @@ class RouterStats(Entity):
        RouterStats.table.c.circ_fail_from:f_from_s,
        RouterStats.table.c.avg_first_ext:avg_ext}).execute()
 
+      # added case() to set NULL and avoid divide-by-zeros (Postgres)
     RouterStats.table.update(stats_clause, values=
       {RouterStats.table.c.circ_from_rate:
-         RouterStats.table.c.circ_fail_from/RouterStats.table.c.circ_try_from,
+          case([(RouterStats.table.c.circ_try_from == 0, None)],
+              else_=(RouterStats.table.c.circ_fail_from/RouterStats.table.c.circ_try_from)),
        RouterStats.table.c.circ_to_rate:
-          RouterStats.table.c.circ_fail_to/RouterStats.table.c.circ_try_to,
+          case([(RouterStats.table.c.circ_try_to == 0, None)],
+              else_=(RouterStats.table.c.circ_fail_to/RouterStats.table.c.circ_try_to)),
        RouterStats.table.c.circ_bi_rate:
-         (RouterStats.table.c.circ_fail_to+RouterStats.table.c.circ_fail_from)
+          case([(RouterStats.table.c.circ_try_to+RouterStats.table.c.circ_try_from == 0, None)],
+           else_=((RouterStats.table.c.circ_fail_to+RouterStats.table.c.circ_fail_from)
                           /
-      (RouterStats.table.c.circ_try_to+RouterStats.table.c.circ_try_from)}).execute()
+                 (RouterStats.table.c.circ_try_to+RouterStats.table.c.circ_try_from))),
+      }).execute()
 
 
     # TODO: Give the streams relation table a sane name and reduce this too
@@ -370,7 +383,7 @@ class RouterStats(Entity):
   _compute_stats = Callable(_compute_stats)
 
   def _compute_ranks():
-    tc_session.clear()
+    tc_session.expunge_all()
     min_r = select([func.min(BwHistory.rank)],
         BwHistory.table.c.router_idhex
             == RouterStats.table.c.router_idhex).as_scalar()
@@ -395,26 +408,44 @@ class RouterStats(Entity):
         RouterStats.table.c.avg_desc_bw:avg_desc_bw}).execute()
 
     #min_avg_rank = select([func.min(RouterStats.avg_rank)]).as_scalar()
-    max_avg_rank = select([func.max(RouterStats.avg_rank)]).as_scalar()
+
+    # the commented query breaks mysql because UPDATE cannot reference
+    # target table in the FROM clause. So we throw in an anonymous alias and wrap
+    # another select around it in order to get the nested SELECT stored into a 
+    # temporary table.
+    # FIXME: performance? no idea 
+    #max_avg_rank = select([func.max(RouterStats.avg_rank)]).as_scalar()
+    max_avg_rank = select([alias(select([func.max(RouterStats.avg_rank)]))]).as_scalar()
 
     RouterStats.table.update(values=
        {RouterStats.table.c.percentile:
             (100.0*RouterStats.table.c.avg_rank)/max_avg_rank}).execute()
+
     tc_session.commit()
   _compute_ranks = Callable(_compute_ranks)
 
   def _compute_ratios(stats_clause):
-    tc_session.clear()
-    avg_from_rate = select([func.avg(RouterStats.circ_from_rate)],
-                           stats_clause).as_scalar()
-    avg_to_rate = select([func.avg(RouterStats.circ_to_rate)],
-                           stats_clause).as_scalar()
-    avg_bi_rate = select([func.avg(RouterStats.circ_bi_rate)],
-                           stats_clause).as_scalar()
-    avg_ext = select([func.avg(RouterStats.avg_first_ext)],
-                           stats_clause).as_scalar()
-    avg_sbw = select([func.avg(RouterStats.sbw)],
-                           stats_clause).as_scalar()
+    tc_session.expunge_all()
+    avg_from_rate = select([alias(
+        select([func.avg(RouterStats.circ_from_rate)],
+                           stats_clause)
+        )]).as_scalar()
+    avg_to_rate = select([alias(
+        select([func.avg(RouterStats.circ_to_rate)],
+                           stats_clause)
+        )]).as_scalar()
+    avg_bi_rate = select([alias(
+        select([func.avg(RouterStats.circ_bi_rate)],
+                           stats_clause)
+        )]).as_scalar()
+    avg_ext = select([alias(
+        select([func.avg(RouterStats.avg_first_ext)],
+                           stats_clause)
+        )]).as_scalar()
+    avg_sbw = select([alias(
+        select([func.avg(RouterStats.sbw)],
+                           stats_clause)
+        )]).as_scalar()
 
     RouterStats.table.update(stats_clause, values=
        {RouterStats.table.c.circ_from_ratio:
@@ -476,7 +507,7 @@ class RouterStats(Entity):
   _compute_filtered_ratios = Callable(_compute_filtered_ratios)
 
   def reset():
-    tc_session.clear()
+    tc_session.expunge_all()
     RouterStats.table.drop()
     RouterStats.table.create()
     for r in Router.query.all():
@@ -537,6 +568,7 @@ class RouterStats(Entity):
     def cvt(a,b,c=1):
       if type(a) == float: return round(a/c,b)
       elif type(a) == int: return a
+      elif type(a) == long: return a
       elif type(a) == type(None): return "None"
       else: return type(a)
 
@@ -625,7 +657,13 @@ class RouterStats(Entity):
 
 #################### Model Support ################
 def reset_all():
+  plog("WARN", "SQLSupport.reset_all() called. See SQLSupport.py for details")
   # Need to keep routers around.. 
+  # WARNING!
+  # Must keep the routers around because circ_status_event may
+  # reference old Routers that are no longer in consensus
+  # and will raise an ObjectDeletedError. See function circ_status_event in
+  # class CircuitListener in SQLSupport.py
   for r in Router.query.all():
     # This appears to be needed. the relation tables do not get dropped 
     # automatically.
@@ -637,7 +675,17 @@ def reset_all():
     tc_session.add(r)
 
   tc_session.commit()
-  tc_session.clear()
+  tc_session.expunge_all()
+
+  # WARNING!
+  # May not clear relation all tables! (SQLAlchemy or Elixir bug)
+  # Try: 
+  # tc_session.execute('delete from router_streams__stream;')
+
+  # WARNING!
+  # This will cause Postgres databases to hang
+  # on DROP TABLE. Possibly an issue with cascade.
+  # Sqlite works though.
 
   BwHistory.table.drop() # Will drop subclasses
   Extension.table.drop()
@@ -658,6 +706,17 @@ def reset_all():
   #    plog("WARN", "Router still has dropped data!")
 
   plog("NOTICE", "Reset all SQL stats")
+
+def refresh_all():
+  # necessary to keep all sessions synchronized
+  # This is probably a bug. See reset_all() above.
+  # Call this after update_consensus(), _update_rank_history()
+  # See: ScanSupport.reset_stats()
+  # Could be a cascade problem too, see:
+  # http://stackoverflow.com/questions/3481976/sqlalchemy-objectdeletederror-instance-class-at-has-been-deleted-help
+  # Also see:
+  # http://groups.google.com/group/sqlalchemy/browse_thread/thread/c9099eaaffd7c348
+  [tc_session.refresh(r) for r in Router.query.all()]
 
 ##################### End Model Support ####################
 

@@ -182,7 +182,7 @@ class SQLScanHandler(ScanHandler):
     ScanHandler.__init__(self, c, selmgr, RouterClass, strm_selector)
 
   def attach_sql_listener(self, db_uri):
-    plog("DEBUG", "Got sqlite: "+db_uri)
+    plog("DEBUG", "Got db: "+db_uri)
     SQLSupport.setup_db(db_uri, echo=False, drop=True)
     self.sql_consensus_listener = SQLSupport.ConsensusTrackerListener()
     self.add_event_listener(self.sql_consensus_listener)
@@ -260,4 +260,18 @@ class SQLScanHandler(ScanHandler):
     cond.release()
     plog("INFO", "Consensus OK")
 
-
+  def reset_stats(self):
+    cond = threading.Condition()
+    def notlambda(this):
+      cond.acquire()
+      ScanHandler.reset_stats(self)
+      SQLSupport.reset_all()
+      this.sql_consensus_listener.update_consensus()
+      this.sql_consensus_listener._update_rank_history(this.sql_consensus_listener.consensus.ns_map.iterkeys())
+      SQLSupport.refresh_all()
+      cond.notify()
+      cond.release()
+    cond.acquire()
+    self.schedule_low_prio(notlambda)
+    cond.wait()
+    cond.release()
