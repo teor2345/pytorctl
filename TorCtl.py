@@ -1772,8 +1772,9 @@ class ConsensusTracker(EventHandler):
 
       r = r[0]
       ns = ns[0]
-      if ns.idhex in self.routers and self.routers[ns.idhex].orhash == r.orhash:
-        plog("NOTICE",
+      if ns.idhex in self.routers:
+        if self.routers[ns.idhex].orhash == r.orhash:
+          plog("NOTICE",
              "Got extra NEWDESC event for router "+ns.nickname+"="+ns.idhex)
       else:
         self.consensus_count += 1
