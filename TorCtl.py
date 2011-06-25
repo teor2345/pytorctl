@@ -96,82 +96,6 @@ AUTH_TYPE = Enum2(
 
 INCORRECT_PASSWORD_MSG = "Provided passphrase was incorrect"
 
-def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None):
-  """
-  Convenience function for quickly getting a TorCtl connection. This is very
-  handy for debugging or CLI setup, handling setup and prompting for a password
-  if necessary (if either none is provided as input or it fails). If any issues
-  arise this prints a description of the problem and returns None.
-  
-  Arguments:
-    controlAddr - ip address belonging to the controller
-    controlPort - port belonging to the controller
-    passphrase  - authentication passphrase (if defined this is used rather
-                  than prompting the user)
-  """
-
-  conn = None
-  try:
-    conn, authType, authValue = preauth_connect(controlAddr, controlPort)
-
-    if authType == AUTH_TYPE.PASSWORD:
-      # password authentication, promting for the password if it wasn't provided
-      if passphrase: authValue = passphrase
-      else:
-        try: authValue = getpass.getpass()
-        except KeyboardInterrupt: return None
-
-    conn.authenticate(authValue)
-    return conn
-  except Exception, exc:
-    if conn: conn.close()
-
-    if passphrase and str(exc) == "Unable to authenticate: password incorrect":
-      # provide a warning that the provided password didn't work, then try
-      # again prompting for the user to enter it
-      print INCORRECT_PASSWORD_MSG
-      return connect(controlAddr, controlPort)
-    else:
-      print exc
-      return None
-
-def preauth_connect(controlAddr="127.0.0.1", controlPort=9051):
-  """
-  Provides an uninitiated torctl connection components for the control port,
-  returning a tuple of the form...
-  (torctl connection, authType, authValue)
-
-  The authValue corresponds to the cookie path if using an authentication
-  cookie, otherwise this is the empty string. This raises an IOError in case
-  of failure.
-
-  Arguments:
-    controlAddr - ip address belonging to the controller
-    controlPort - port belonging to the controller
-  """
-
-  conn = None
-  try:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((controlAddr, controlPort))
-    conn = Connection(s)
-    authType, authValue = conn.get_auth_type(), ""
-
-    if authType == AUTH_TYPE.COOKIE:
-      authValue = conn.get_auth_cookie_path()
-
-    return (conn, authType, authValue)
-  except socket.error, exc:
-    if conn: conn.close()
-
-    if "Connection refused" in exc.args:
-      # most common case - tor control port isn't available
-      raise IOError("Connection refused. Is the ControlPort enabled?")
-
-    raise IOError("Failed to establish socket: %s" % exc)
-  except Exception, exc:
-    if conn: conn.close()
-    raise IOError(exc)
 
 class TorCtlError(Exception):
   "Generic error raised by TorControl code."
@@ -1902,4 +1826,84 @@ def parseHostAndPort(h):
       host = h
 
   return host, port
+
+def connect(controlAddr="127.0.0.1", controlPort=9051, passphrase=None,
+            ConnClass=Connection):
+  """
+  Convenience function for quickly getting a TorCtl connection. This is very
+  handy for debugging or CLI setup, handling setup and prompting for a password
+  if necessary (if either none is provided as input or it fails). If any issues
+  arise this prints a description of the problem and returns None.
+  
+  Arguments:
+    controlAddr - ip address belonging to the controller
+    controlPort - port belonging to the controller
+    passphrase  - authentication passphrase (if defined this is used rather
+                  than prompting the user)
+  """
+
+  conn = None
+  try:
+    conn, authType, authValue = preauth_connect(controlAddr, controlPort,
+                                                ConnClass)
+
+    if authType == AUTH_TYPE.PASSWORD:
+      # password authentication, promting for the password if it wasn't provided
+      if passphrase: authValue = passphrase
+      else:
+        try: authValue = getpass.getpass()
+        except KeyboardInterrupt: return None
+
+    conn.authenticate(authValue)
+    return conn
+  except Exception, exc:
+    if conn: conn.close()
+
+    if passphrase and str(exc) == "Unable to authenticate: password incorrect":
+      # provide a warning that the provided password didn't work, then try
+      # again prompting for the user to enter it
+      print INCORRECT_PASSWORD_MSG
+      return connect(controlAddr, controlPort)
+    else:
+      print exc
+      return None
+
+def preauth_connect(controlAddr="127.0.0.1", controlPort=9051,
+                    ConnClass=Connection):
+  """
+  Provides an uninitiated torctl connection components for the control port,
+  returning a tuple of the form...
+  (torctl connection, authType, authValue)
+
+  The authValue corresponds to the cookie path if using an authentication
+  cookie, otherwise this is the empty string. This raises an IOError in case
+  of failure.
+
+  Arguments:
+    controlAddr - ip address belonging to the controller
+    controlPort - port belonging to the controller
+  """
+
+  conn = None
+  try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((controlAddr, controlPort))
+    conn = ConnClass(s)
+    authType, authValue = conn.get_auth_type(), ""
+
+    if authType == AUTH_TYPE.COOKIE:
+      authValue = conn.get_auth_cookie_path()
+
+    return (conn, authType, authValue)
+  except socket.error, exc:
+    if conn: conn.close()
+
+    if "Connection refused" in exc.args:
+      # most common case - tor control port isn't available
+      raise IOError("Connection refused. Is the ControlPort enabled?")
+
+    raise IOError("Failed to establish socket: %s" % exc)
+  except Exception, exc:
+    if conn: conn.close()
+    raise IOError(exc)
 
