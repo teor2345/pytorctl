@@ -24,6 +24,7 @@ from TorCtl import EVENT_TYPE, EVENT_STATE, TorCtlError
 import sqlalchemy
 import sqlalchemy.orm.exc
 from sqlalchemy.orm import scoped_session, sessionmaker, eagerload, lazyload, eagerload_all
+from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import create_engine, and_, or_, not_, func
 from sqlalchemy.sql import func,select,alias,case
 from sqlalchemy.schema import ThreadLocalMetaData,MetaData
@@ -870,8 +871,13 @@ class CircuitListener(TorCtl.PreEventListener):
                      last_extend=c.arrived_at)
       if self.track_parent:
         for r in self.parent_handler.circuits[c.circ_id].path:
-          rq = Router.query.options(eagerload('circuits')).filter_by(
+          try:
+            rq = Router.query.options(eagerload('circuits')).filter_by(
                                 idhex=r.idhex).with_labels().one()
+          except NoResultFound:
+            plog("WARN", "Query for Router %s=%s in circ %s failed but was in parent_handler" %
+                    (r.nickname, r.idhex, circ.circ_id))
+            return;
           circ.routers.append(rq) 
           #rq.circuits.append(circ) # done automagically?
           #tc_session.add(rq)
