@@ -772,6 +772,8 @@ class ConsensusTrackerListener(TorCtl.DualEventListener):
         tc_session.add(r)
     plog("INFO", "Consensus db updated")
     tc_session.commit()
+    # testing
+    #refresh_all() # Too many sessions, don't trust commit()
 
   def update_consensus(self):
     plog("INFO", "Updating DB with full consensus.")
