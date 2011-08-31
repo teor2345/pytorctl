@@ -1023,7 +1023,7 @@ class StreamListener(CircuitListener):
       (s.strm_id not in self.parent_handler.streams or \
            self.parent_handler.streams[s.strm_id].ignored):
       if strm:
-        tc_session.delete(strm)
+        strm.delete()
         tc_session.commit()
       return # Ignore streams that aren't ours
 
@@ -1038,7 +1038,7 @@ class StreamListener(CircuitListener):
       strm.circuit = Circuit.query.filter_by(circ_id=s.circ_id).first()
       if not strm.circuit:
         plog("NOTICE", "Ignoring prior stream "+str(strm.strm_id)+" with old circuit "+str(s.circ_id))
-        tc_session.delete(strm)
+        strm.delete()
         tc_session.commit()
         return
     else:
