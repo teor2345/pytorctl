@@ -879,7 +879,8 @@ class CircuitListener(TorCtl.PreEventListener):
           except NoResultFound:
             plog("WARN", "Query for Router %s=%s in circ %s failed but was in parent_handler" %
                     (r.nickname, r.idhex, circ.circ_id))
-            return;
+            tc_session.remove()
+            return
           circ.routers.append(rq) 
           #rq.circuits.append(circ) # done automagically?
           #tc_session.add(rq)
