@@ -417,3 +417,25 @@ Usage:   lzprob(z)
         prob = ((1.0-x)*0.5)
     return prob
 
+def get_git_version(path_to_repo):
+  """ Returns a tuple of the branch and head from a git repo (.git)
+      if available, or returns ('unknown', 'unknown')
+  """
+  try:
+    f = open(path_to_repo+'HEAD')
+    ref = f.readline().strip().split(' ')
+    f.close()
+  except IOError, e:
+    plog('ERROR', e)
+    return ('unknown','unknown')
+  try:
+    f = open(path_to_repo+ref[1])
+    branch = ref[1].strip().split('/')[-1]
+    head = f.readline().strip()
+    f.close()
+    return (branch, head)
+  except IOError, e:
+    plog('ERROR', e)
+  except IndexError, e:
+    plog('ERROR', e)
+  return ('unknown','unknown') 
