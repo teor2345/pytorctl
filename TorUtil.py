@@ -426,7 +426,7 @@ def get_git_version(path_to_repo):
     ref = f.readline().strip().split(' ')
     f.close()
   except IOError, e:
-    plog('ERROR', e)
+    plog('NOTICE', 'Git Repo at %s Not Found' % path_to_repo)
     return ('unknown','unknown')
   try:
     f = open(path_to_repo+ref[1])
@@ -435,7 +435,8 @@ def get_git_version(path_to_repo):
     f.close()
     return (branch, head)
   except IOError, e:
-    plog('ERROR', e)
+    pass
   except IndexError, e:
-    plog('ERROR', e)
+    pass
+  plog('NOTICE', 'Git Repo at %s Not Found' % path_to_repo)
   return ('unknown','unknown') 
