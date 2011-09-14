@@ -429,9 +429,13 @@ def get_git_version(path_to_repo):
     plog('NOTICE', 'Git Repo at %s Not Found' % path_to_repo)
     return ('unknown','unknown')
   try:
-    f = open(path_to_repo+ref[1])
-    branch = ref[1].strip().split('/')[-1]
-    head = f.readline().strip()
+    if len(ref) > 1:
+      f = open(path_to_repo+ref[1])
+      branch = ref[1].strip().split('/')[-1]
+      head = f.readline().strip()
+    else:
+      branch = 'detached'
+      head = ref[0]
     f.close()
     return (branch, head)
   except IOError, e:
