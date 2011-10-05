@@ -1607,6 +1607,9 @@ class PathBuilder(TorCtl.ConsensusTracker):
             plog("WARN", "Error attaching new stream: "+str(e.args))
             return
           break
+    # This else clause is executed when we go through the circuit
+    # list without finding an entry (or it is empty).
+    # http://docs.python.org/tutorial/controlflow.html#break-and-continue-statements-and-else-clauses-on-loops
     else:
       circ = None
       try:
