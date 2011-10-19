@@ -164,6 +164,8 @@ class ScanHandler(PathSupport.PathBuilder):
     def notlambda(sm):
       plog("DEBUG", "Job for setexit: "+exit_name)
       cond.acquire()
+      # Clear last successful exit, we're running a new test
+      self.last_exit = None
       sm.set_exit(exit_name)
       cond.notify()
       cond.release()
