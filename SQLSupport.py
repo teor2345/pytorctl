@@ -674,6 +674,7 @@ class RouterStats(Entity):
       f.write("node_id=$"+s.router.idhex+" nick="+s.router.nickname)
       f.write(" strm_bw="+str(cvt(s.sbw,0)))
       f.write(" filt_bw="+str(cvt(s.filt_sbw,0)))
+      f.write(" circ_fail_rate="+str(cvt(s.circ_to_rate,0)))
       f.write(" desc_bw="+str(int(cvt(s.avg_desc_bw,0))))
       f.write(" ns_bw="+str(int(cvt(s.avg_bw,0)))+"\n")
 
