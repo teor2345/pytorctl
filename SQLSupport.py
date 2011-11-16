@@ -22,6 +22,7 @@ from TorUtil import meta_port, meta_host, control_port, control_host, control_pa
 from TorCtl import EVENT_TYPE, EVENT_STATE, TorCtlError
 
 import sqlalchemy
+import sqlalchemy.pool
 import sqlalchemy.orm.exc
 from sqlalchemy.orm import scoped_session, sessionmaker, eagerload, lazyload, eagerload_all
 from sqlalchemy.orm.exc import NoResultFound
@@ -58,7 +59,13 @@ tc_metadata.echo=True
 tc_session = scoped_session(sessionmaker(autoflush=True))
 
 def setup_db(db_uri, echo=False, drop=False):
-  tc_engine = create_engine(db_uri, echo=echo)
+  # Memory-only sqlite requires some magic options...
+  if db_uri == "sqlite://":
+    tc_engine = create_engine(db_uri, echo=echo,
+                              connect_args={'check_same_thread':False},
+                              poolclass=sqlalchemy.pool.StaticPool)
+  else:
+    tc_engine = create_engine(db_uri, echo=echo)
   tc_metadata.bind = tc_engine
   tc_metadata.echo = echo
 
