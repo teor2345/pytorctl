@@ -563,7 +563,7 @@ class Connection:
       else:
         # not of a recognized authentication type (new addition to the
         # control-spec?)
-        raise IOError("Unrecognized authentication type: %s" % authInfo)
+        plog("INFO", "Unrecognized authentication type: %s" % authInfo)
       
       self._authType = authType
       self._cookiePath = cookiePath
