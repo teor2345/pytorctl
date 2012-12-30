@@ -1,3 +1,12 @@
+Note: TorCtl is mostly unmaintained. It serves primarily as the support
+library for the Bandwidth Authorities, Exit Scanner, and other projects in
+TorFlow. For more actively maintained python libraries, you may consider using
+Stem or TxTorCon. See:
+https://stem.torproject.org/ and https://github.com/meejah/txtorcon
+
+
+
+
                          TorCtl Python Bindings
 
 
