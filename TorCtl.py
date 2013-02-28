@@ -120,7 +120,7 @@ class ErrorReply(TorCtlError):
 
 class NetworkStatus:
   "Filled in during NS events"
-  def __init__(self, nickname, idhash, orhash, updated, ip, orport, dirport, flags, bandwidth=None):
+  def __init__(self, nickname, idhash, orhash, updated, ip, orport, dirport, flags, bandwidth=None, unmeasured=None):
     self.nickname = nickname
     self.idhash = idhash
     self.orhash = orhash
@@ -130,6 +130,7 @@ class NetworkStatus:
     self.flags = flags
     self.idhex = (self.idhash + "=").decode("base64").encode("hex").upper()
     self.bandwidth = bandwidth
+    self.unmeasured = unmeasured
     m = re.search(r"(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)", updated)
     self.updated = datetime.datetime(*map(int, m.groups()))
 
@@ -369,13 +370,15 @@ class Router:
     else:
       (idhex, name, bw, down, exitpolicy, flags, ip, version, os, uptime,
        published, contact, rate_limited, orhash,
-       ns_bandwidth,extra_info_digest) = args
+       ns_bandwidth,extra_info_digest,unmeasured) = args
     self.idhex = idhex
     self.nickname = name
     if ns_bandwidth != None:
       self.bw = ns_bandwidth
     else:
-     self.bw = bw
+      self.bw = bw
+    if unmeasured:
+      self.unmeasured = True
     self.desc_bw = bw
     self.exitpolicy = exitpolicy
     self.flags = flags # Technicaly from NS doc
@@ -483,7 +486,7 @@ class Router:
       plog("INFO", "No version and/or OS for router " + ns.nickname)
     return Router(ns.idhex, ns.nickname, bw_observed, dead, exitpolicy,
         ns.flags, ip, version, os, uptime, published, contact, rate_limited,
-        ns.orhash, ns.bandwidth, extra_info_digest)
+        ns.orhash, ns.bandwidth, extra_info_digest, ns.unmeasured)
   build_from_desc = Callable(build_from_desc)
 
   def update_to(self, new):
@@ -504,6 +507,11 @@ class Router:
         return ret
     plog("WARN", "No matching exit line for "+self.nickname)
     return False
+
+  def get_unmeasured_bw(self):
+    # if unmeasured, the ratio of self.bw/self.desc_bw should be 1.0
+    if self.unmeasured: return self.bw
+    else: return self.desc_bw
    
 class Connection:
   """A Connection represents a connection to the Tor process via the 
@@ -1220,10 +1228,11 @@ def ns_body_iter(data):
       flags = m.groups()
       flags = flags[0].strip().split(" ")
       m = re.match(r"(\S+)\s(\S+)\s(\S+)\s(\S+\s\S+)\s(\S+)\s(\d+)\s(\d+)", nsline)
-      w = re.search(r"^w Bandwidth=(\d+)", nsline, re.M)
-
+      w = re.search(r"^w Bandwidth=(\d+)(?:\s(Unmeasured)=1)?", nsline, re.M)
+      unmeasured = None
       if w:
-        yield NetworkStatus(*(m.groups()+(flags,)+(int(w.group(1))*1000,)))
+        if w.groups(2): unmeasured = True
+        yield NetworkStatus(*(m.groups()+(flags,)+(int(w.group(1))*1000,))+(unmeasured,))
       else:
         yield NetworkStatus(*(m.groups() + (flags,)))
 
@@ -1634,9 +1643,15 @@ class ConsensusTracker(EventHandler):
     self.sorted_r.sort(lambda x, y: cmp(y.bw, x.bw))
     for i in xrange(len(self.sorted_r)): self.sorted_r[i].list_rank = i
 
+    # https://trac.torproject.org/projects/tor/ticket/6131
+    # Routers with 'Unmeasured=1' should get a hard-coded ratio of 1.0.
+    #   "Alter the ratio_r sorting to use a Router.get_unmeasured_bw()
+    #   method to return the NetworkStatus bw value instead of desc_bw
+    #   if unmeasured is true... Then the ratio will work out to 1 that way."
+
     ratio_r = copy.copy(self.sorted_r)
-    ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.desc_bw,
-                                  float(x.bw)/x.desc_bw))
+    ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.get_unmeasured_bw(),
+                                  float(x.bw)/x.get_unmeasured_bw()))
     for i in xrange(len(ratio_r)): ratio_r[i].ratio_rank = i
 
     # XXX: Verification only. Can be removed.
@@ -1724,8 +1739,8 @@ class ConsensusTracker(EventHandler):
       for i in xrange(len(self.sorted_r)): self.sorted_r[i].list_rank = i
 
       ratio_r = copy.copy(self.sorted_r)
-      ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.desc_bw,
-                                    float(x.bw)/x.desc_bw))
+      ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.get_unmeasured_bw(),
+                                    float(x.bw)/x.get_unmeasured_bw()))
       for i in xrange(len(ratio_r)): ratio_r[i].ratio_rank = i
     plog("DEBUG", str(time.time()-d.arrived_at)+ " Read " + str(len(d.idlist))
        +" ND => "+str(len(self.sorted_r))+" routers. Update: "+str(update))
@@ -1758,8 +1773,8 @@ class ConsensusTracker(EventHandler):
       for i in xrange(len(self.sorted_r)): self.sorted_r[i].list_rank = i
 
       ratio_r = copy.copy(self.sorted_r)
-      ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.desc_bw,
-                                    float(x.bw)/x.desc_bw))
+      ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.get_unmeasured_bw(),
+                                    float(x.bw)/x.get_unmeasured_bw()))
       for i in xrange(len(ratio_r)): ratio_r[i].ratio_rank = i
     self._sanity_check(self.sorted_r)
 
