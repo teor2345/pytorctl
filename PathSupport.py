@@ -1076,8 +1076,8 @@ class SelectionManager(BaseSelectionManager):
       self.path_rstr = PathRestrictionList(
            [Subnet16Restriction(), UniqueRestriction()])
   
-    if self.use_guards: entry_flags = ["Guard", "Running", "Fast"]
-    else: entry_flags = ["Running", "Fast"]
+    if self.use_guards: entry_flags = ["Guard", "Running"]
+    else: entry_flags = ["Running"]
 
     if self.restrict_guards_only:
       nonentry_skip = 0
@@ -1105,7 +1105,7 @@ class SelectionManager(BaseSelectionManager):
        OrNodeRestriction(
            [FlagsRestriction(["BadExit"]),
            ConserveExitsRestriction(self.exit_ports)]),
-       FlagsRestriction(["Running","Fast"], [])]
+       FlagsRestriction(["Running"], [])]
 
     )
 
@@ -1115,11 +1115,11 @@ class SelectionManager(BaseSelectionManager):
       self.exit_rstr = NodeRestrictionList([IdHexRestriction(self.exit_id)])
     elif self.use_all_exits:
       self.exit_rstr = NodeRestrictionList(
-        [FlagsRestriction(["Running","Fast"], ["BadExit"])])
+        [FlagsRestriction(["Running"], ["BadExit"])])
     else:
       self.exit_rstr = NodeRestrictionList(
         [PctRstr(nonentry_skip, nonentry_fast, sorted_r),
-         FlagsRestriction(["Running","Fast"], ["BadExit"])])
+         FlagsRestriction(["Running"], ["BadExit"])])
 
     if self.extra_node_rstr:
       entry_rstr.add_restriction(self.extra_node_rstr)
