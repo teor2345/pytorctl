@@ -510,8 +510,9 @@ class Router:
 
   def get_unmeasured_bw(self):
     # if unmeasured, the ratio of self.bw/self.desc_bw should be 1.0
-    if self.unmeasured: return self.bw
-    else: return self.desc_bw
+    if self.unmeasured and self.bw > 0: return self.bw
+    elif self.desc_bw > 0: return self.desc_bw
+    else: return 1
    
 class Connection:
   """A Connection represents a connection to the Tor process via the 
