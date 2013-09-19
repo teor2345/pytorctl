@@ -1357,38 +1357,24 @@ class EventHandler(EventSink):
       evtype,body = body,""
     evtype = evtype.upper()
     if evtype == "CIRC":
-      m = re.match(r"(\d+)\s+(\S+)(\s\S+)?(\s\S+)?(\s\S+)?(\s\S+)?", body)
-      if not m:
-        raise ProtocolError("CIRC event misformatted.")
-      ident,status,path,purpose,reason,remote = m.groups()
-      ident = int(ident)
-      if path:
-        if "PURPOSE=" in path:
-          remote = reason
-          reason = purpose
-          purpose=path
-          path=[]
-        elif "REASON=" in path:
-          remote = reason
-          reason = path
-          purpose = ""
-          path=[]
-        else:
-          path_verb = path.strip().split(",")
-          path = []
-          for p in path_verb:
-            path.append(p.replace("~", "=").split("=")[0])
+      fields = body.split()
+      (ident,status),rest = fields[:2], fields[2:]
+      if rest[0].startswith('$'):
+        path = rest.pop(0)
+        path_verb = path.strip().split(",")
+        path = []
+        for p in path_verb:
+          path.append(p.replace("~", "=").split("=")[0])
       else:
         path = []
-
-      if purpose and "REASON=" in purpose:
-        remote=reason
-        reason=purpose
-        purpose=""
-
-      if purpose: purpose = purpose[9:]
-      if reason: reason = reason[8:]
-      if remote: remote = remote[15:]
+      try:
+        kwargs = dict([i.split('=') for i in rest])
+      except ValueError:
+        raise ProtocolError("CIRC event misformatted.")
+      ident = int(ident)
+      purpose = kwargs.get('PURPOSE', None)
+      reason = kwargs.get('REASON', None)
+      remote = kwargs.get('REMOTE_REASON', None)
       event = CircuitEvent(evtype, ident, status, path, purpose, reason,
                            remote, body)
     elif evtype == "STREAM":
