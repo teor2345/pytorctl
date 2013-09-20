@@ -1372,7 +1372,7 @@ class EventHandler(EventSink):
       except ValueError:
         raise ProtocolError("CIRC event misformatted.")
       ident = int(ident)
-      purpose = kwargs.get('PURPOSE', None)
+      purpose = kwargs.get('PURPOSE', "")
       reason = kwargs.get('REASON', None)
       remote = kwargs.get('REMOTE_REASON', None)
       event = CircuitEvent(evtype, ident, status, path, purpose, reason,
