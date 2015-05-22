@@ -374,12 +374,14 @@ class Router:
     self.idhex = idhex
     self.nickname = name
     if ns_bandwidth != None:
-      self.bw = ns_bandwidth
+      self.bw = max(ns_bandwidth,1) # Avoid div by 0
     else:
-      self.bw = bw
+      self.bw = max(bw,1) # Avoid div by 0
     if unmeasured:
       self.unmeasured = True
-    self.desc_bw = bw
+    else:
+      self.unmeasured = False
+    self.desc_bw = max(bw,1) # Avoid div by 0
     self.exitpolicy = exitpolicy
     self.flags = flags # Technicaly from NS doc
     self.down = down
@@ -510,9 +512,8 @@ class Router:
 
   def get_unmeasured_bw(self):
     # if unmeasured, the ratio of self.bw/self.desc_bw should be 1.0
-    if self.unmeasured and self.bw > 0: return self.bw
-    elif self.desc_bw > 0: return self.desc_bw
-    else: return 1
+    if self.unmeasured: return self.desc_bw
+    else: return self.bw
    
 class Connection:
   """A Connection represents a connection to the Tor process via the 
@@ -1232,9 +1233,11 @@ def ns_body_iter(data):
       w = re.search(r"^w Bandwidth=(\d+)(?:\s(Unmeasured)=1)?", nsline, re.M)
       unmeasured = None
       if w:
-        if w.groups(2): unmeasured = True
+        if w.group(2):
+          unmeasured = True
         yield NetworkStatus(*(m.groups()+(flags,)+(int(w.group(1))*1000,))+(unmeasured,))
       else:
+        plog("WARN", "NS document has no bandwidth line: "+nsline)
         yield NetworkStatus(*(m.groups() + (flags,)))
 
 class EventSink:
@@ -1637,9 +1640,10 @@ class ConsensusTracker(EventHandler):
     #   if unmeasured is true... Then the ratio will work out to 1 that way."
 
     ratio_r = copy.copy(self.sorted_r)
-    ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.get_unmeasured_bw(),
-                                  float(x.bw)/x.get_unmeasured_bw()))
-    for i in xrange(len(ratio_r)): ratio_r[i].ratio_rank = i
+    ratio_r.sort(lambda x, y: cmp(y.get_unmeasured_bw()/float(y.desc_bw),
+                                  x.get_unmeasured_bw()/float(x.desc_bw)))
+    for i in xrange(len(ratio_r)):
+      ratio_r[i].ratio_rank = i
 
     # XXX: Verification only. Can be removed.
     self._sanity_check(self.sorted_r)
@@ -1726,8 +1730,8 @@ class ConsensusTracker(EventHandler):
       for i in xrange(len(self.sorted_r)): self.sorted_r[i].list_rank = i
 
       ratio_r = copy.copy(self.sorted_r)
-      ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.get_unmeasured_bw(),
-                                    float(x.bw)/x.get_unmeasured_bw()))
+      ratio_r.sort(lambda x, y: cmp(y.get_unmeasured_bw()/y.desc_bw,
+                                    x.get_unmeasured_bw()/x.desc_bw))
       for i in xrange(len(ratio_r)): ratio_r[i].ratio_rank = i
     plog("DEBUG", str(time.time()-d.arrived_at)+ " Read " + str(len(d.idlist))
        +" ND => "+str(len(self.sorted_r))+" routers. Update: "+str(update))
@@ -1760,8 +1764,8 @@ class ConsensusTracker(EventHandler):
       for i in xrange(len(self.sorted_r)): self.sorted_r[i].list_rank = i
 
       ratio_r = copy.copy(self.sorted_r)
-      ratio_r.sort(lambda x, y: cmp(float(y.bw)/y.get_unmeasured_bw(),
-                                    float(x.bw)/x.get_unmeasured_bw()))
+      ratio_r.sort(lambda x, y: cmp(y.get_unmeasured_bw()/float(y.desc_bw),
+                                    x.get_unmeasured_bw()/float(x.desc_bw)))
       for i in xrange(len(ratio_r)): ratio_r[i].ratio_rank = i
     self._sanity_check(self.sorted_r)
 
