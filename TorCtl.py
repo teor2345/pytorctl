@@ -1086,7 +1086,7 @@ class Connection:
       except ErrorReply:
         bad_key += 1
         if "Running" in ns.flags:
-          plog("NOTICE", "Running router "+ns.nickname+"="
+          plog("INFO", "Running router "+ns.nickname+"="
              +ns.idhex+" has no descriptor")
   
     return new
@@ -1710,7 +1710,7 @@ class ConsensusTracker(EventHandler):
       ns = ns[0]
       if ns.idhex in self.routers:
         if self.routers[ns.idhex].orhash == r.orhash:
-          plog("NOTICE",
+          plog("INFO",
              "Got extra NEWDESC event for router "+ns.nickname+"="+ns.idhex)
       else:
         self.consensus_count += 1
