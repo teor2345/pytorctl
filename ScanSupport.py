@@ -79,6 +79,7 @@ class ScanHandler(PathSupport.PathBuilder):
       cond.acquire()
       this.new_nym = True
       if this.selmgr.bad_restrictions:
+        # XXX: Maybe add in exits here?
         plog("NOTICE", "Clearing bad restrictions with reconfigure..")
         this.selmgr.reconfigure(this.current_consensus())
       lines = this.c.sendAndRecv("SIGNAL CLEARDNSCACHE\r\n")
@@ -198,7 +199,8 @@ class SQLScanHandler(ScanHandler):
       cond.acquire()
       SQLSupport.RouterStats.write_stats(file(rfilename, "w"),
                             0, 100, order_by=SQLSupport.RouterStats.sbw,
-                            recompute=True, disp_clause=stats_filter)
+                            recompute=True, disp_clause=stats_filter,
+                            ignore_by_idhex=h.selmgr.added_exits)
       cond.notify()
       cond.release()
     cond.acquire()
@@ -216,7 +218,8 @@ class SQLScanHandler(ScanHandler):
       f.write("slicenum="+str(slice_num)+"\n")
       SQLSupport.RouterStats.write_bws(f, 0, 100,
                             order_by=SQLSupport.RouterStats.sbw,
-                            recompute=False, disp_clause=stats_filter)
+                            recompute=False, disp_clause=stats_filter,
+                            ignore_by_idhex=this.selmgr.added_exits)
       f.close()
       cond.notify()
       cond.release()

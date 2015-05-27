@@ -317,6 +317,20 @@ class ConserveExitsRestriction(NodeRestriction):
   def __str__(self):
     return self.__class__.__name__+"()"
 
+class ExitPortRestriction(NodeRestriction):
+  "Restriction to select exits that can exit to a port list"
+  def __init__(self, exit_ports=None):
+    self.exit_ports = exit_ports
+
+  def r_is_ok(self, r):
+    for port in self.exit_ports:
+      if not r.will_exit_to("255.255.255.255", port):
+        return False
+    return True
+
+  def __str__(self):
+    return self.__class__.__name__+"()"
+
 class FlagsRestriction(NodeRestriction):
   "Restriction for mandatory and forbidden router flags"
   def __init__(self, mandatory, forbidden=[]):
@@ -1030,7 +1044,7 @@ class SelectionManager(BaseSelectionManager):
          percent_fast, percent_skip, min_bw, use_all_exits,
          uniform, use_exit, use_guards,geoip_config=None,
          restrict_guards=False, extra_node_rstr=None, exit_ports=None,
-         order_by_ratio=False):
+         order_by_ratio=False, min_exits=0):
     BaseSelectionManager.__init__(self)
     self.__ordered_exit_gen = None 
     self.pathlen = pathlen
@@ -1049,6 +1063,8 @@ class SelectionManager(BaseSelectionManager):
     self.exit_ports = exit_ports
     self.extra_node_rstr=extra_node_rstr
     self.order_by_ratio = order_by_ratio
+    self.min_exits = min_exits
+    self.added_exits = []
 
   def reconfigure(self, consensus=None):
     try:
@@ -1126,6 +1142,21 @@ class SelectionManager(BaseSelectionManager):
       mid_rstr.add_restriction(self.extra_node_rstr)
       self.exit_rstr.add_restriction(self.extra_node_rstr)
 
+    # This is a hack just for the bw auths to avoid slices with no exits
+    if self.min_exits and self.exit_ports:
+      test_rstr = NodeRestrictionList(
+        [PctRstr(nonentry_skip, nonentry_fast, sorted_r),
+         ExitPortRestriction(self.exit_ports),
+         FlagsRestriction(["Running"], ["BadExit"])])
+      exit_count = len(filter(lambda r: test_rstr.r_is_ok(r), sorted_r))
+      if exit_count < self.min_exits:
+        self.added_exits = self.find_emergency_exits(sorted_r,
+                                self.min_exits-exit_count)
+        plog("NOTICE", "Only "+str(exit_count)+" exits remain in slice "+str(nonentry_skip)+"-"+str(nonentry_fast)+" after restrictions. Adding in "+str(self.added_exits))
+        idhex_list = map(IdHexRestriction, self.added_exits)
+        idhex_list.append(self.exit_rstr)
+        self.exit_rstr = NodeRestrictionList([OrNodeRestriction(idhex_list)])
+
     # GeoIP configuration
     if self.geoip_config:
       # Every node needs country_code 
@@ -1197,6 +1228,17 @@ class SelectionManager(BaseSelectionManager):
          BwWeightedGenerator(sorted_r, mid_rstr, self.pathlen),
          exitgen, self.path_rstr)
       return
+
+  # Picks num of the top_n fastest exits that can handle our exit ports.
+  def find_emergency_exits(self, sorted_r, num, top_n=100):
+    new_exits = []
+    test_rstr = NodeRestrictionList(
+        [ExitPortRestriction(self.exit_ports),
+         FlagsRestriction(["Running"], ["BadExit"])])
+    for r in sorted_r:
+      if test_rstr.r_is_ok(r): new_exits.append(r.idhex)
+      if len(new_exits) >= top_n: break
+    return random.sample(new_exits, min(len(new_exits), num))
 
   def _set_exit(self, exit_name):
     # sets an exit, if bad, sets bad_exit

@@ -565,7 +565,7 @@ class RouterStats(Entity):
     tc_session.remove()
   compute = Callable(compute)  
 
-  def write_stats(f, pct_low=0, pct_high=100, order_by=None, recompute=False, stat_clause=None, filter_clause=None, disp_clause=None):
+  def write_stats(f, pct_low=0, pct_high=100, order_by=None, recompute=False, stat_clause=None, filter_clause=None, disp_clause=None, ignore_by_idhex=[]):
     l_session = tc_session()
 
     if not order_by:
@@ -626,6 +626,9 @@ class RouterStats(Entity):
 
     for s in RouterStats.query.filter(pct_clause).filter(stat_clause).\
              filter(disp_clause).order_by(order_by).all():
+      if s.router.idhex in ignore_by_idhex:
+        plog("NOTICE", "Skipping stats on added exit "+s.router.idhex+" in "+f.name)
+        continue
       f.write(s.router.idhex+" ("+s.router.nickname+")\n")
       f.write("   CF="+str(cvt(s.circ_from_rate,2)))
       f.write("  CT="+str(cvt(s.circ_to_rate,2)))
@@ -649,7 +652,7 @@ class RouterStats(Entity):
   write_stats = Callable(write_stats)  
   
 
-  def write_bws(f, pct_low=0, pct_high=100, order_by=None, recompute=False, stat_clause=None, filter_clause=None, disp_clause=None):
+  def write_bws(f, pct_low=0, pct_high=100, order_by=None, recompute=False, stat_clause=None, filter_clause=None, disp_clause=None, ignore_by_idhex=[]):
     l_session = tc_session()
     if not order_by:
       order_by=RouterStats.avg_first_ext
@@ -678,6 +681,9 @@ class RouterStats(Entity):
 
     for s in RouterStats.query.filter(pct_clause).filter(stat_clause).\
            filter(disp_clause).order_by(order_by).all():
+      if s.router.idhex in ignore_by_idhex:
+        plog("NOTICE", "Skipping stats on added exit "+s.router.idhex+" in "+f.name)
+        continue
       f.write("node_id=$"+s.router.idhex+" nick="+s.router.nickname)
       f.write(" strm_bw="+str(cvt(s.sbw,0)))
       f.write(" filt_bw="+str(cvt(s.filt_sbw,0)))
