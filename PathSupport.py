@@ -250,6 +250,35 @@ class RatioPercentileRestriction(NodeRestriction):
   def __str__(self):
     return self.__class__.__name__+"("+str(self.pct_skip)+","+str(self.pct_fast)+")"
 
+class UnmeasuredPercentileRestriction(NodeRestriction):
+  """Restriction to only accept routers from a percentile range in the
+     unmeasured set"""
+  def __init__(self, pct_skip, pct_fast, r_list):
+    """Constructor. Sets up the restriction such that routers in the
+     'pct_skip' to 'pct_fast' percentile of bandwidth rankings are
+     returned from the sorted list 'r_list'"""
+    self.pct_fast = pct_fast
+    self.pct_skip = pct_skip
+    self.sorted_r = filter(lambda r: r.unmeasured, r_list)
+    plog("DEBUG", "UnmeasuredPercentileRestriction built with "+str(len(self.sorted_r))+" routers")
+
+  def r_is_ok(self, r):
+    "Returns true if r is in the unmeasured percentile boundaries"
+    if not r.unmeasured: return False
+
+    # XXX: Can throw an exception somehow??? catch ValueError here..
+    try:
+      idx = self.sorted_r.index(r)
+    except ValueError:
+      return False
+
+    if idx < len(self.sorted_r)*self.pct_skip/100: return False
+    elif idx > len(self.sorted_r)*self.pct_fast/100: return False
+    return True
+
+  def __str__(self):
+    return self.__class__.__name__+"("+str(self.pct_skip)+","+str(self.pct_fast)+")"
+
 class UptimeRestriction(NodeRestriction):
   """Restriction to filter out routers with uptimes < min_uptime or
      > max_uptime"""
@@ -262,6 +291,12 @@ class UptimeRestriction(NodeRestriction):
     if self.min_uptime and r.uptime < self.min_uptime: return False
     if self.max_uptime and r.uptime > self.max_uptime: return False
     return True
+
+class UnmeasuredRestriction(NodeRestriction):
+  """Restriction to select only unmeasured=1 routers"""
+  def r_is_ok(self, r):
+    "Returns true if r is unmeasured"
+    return r.unmeasured
 
 class RankRestriction(NodeRestriction):
   """Restriction to cut out a list-rank slice of the network."""
@@ -738,6 +773,7 @@ class ExactUniformGenerator(NodeGenerator):
       if lgen < self.position+1:
         for i in xrange(lgen, self.position+1):
           r._generated.append(0)
+    plog("DEBUG", "Rebuilt ExactUniformGenerator")
 
 
 class OrderedExitGenerator(NodeGenerator):
@@ -1044,7 +1080,7 @@ class SelectionManager(BaseSelectionManager):
          percent_fast, percent_skip, min_bw, use_all_exits,
          uniform, use_exit, use_guards,geoip_config=None,
          restrict_guards=False, extra_node_rstr=None, exit_ports=None,
-         order_by_ratio=False, min_exits=0):
+         order_by_ratio=False, min_exits=0, only_unmeasured=False):
     BaseSelectionManager.__init__(self)
     self.__ordered_exit_gen = None 
     self.pathlen = pathlen
@@ -1065,6 +1101,7 @@ class SelectionManager(BaseSelectionManager):
     self.order_by_ratio = order_by_ratio
     self.min_exits = min_exits
     self.added_exits = []
+    self.only_unmeasured = only_unmeasured
 
   def reconfigure(self, consensus=None):
     try:
@@ -1102,7 +1139,9 @@ class SelectionManager(BaseSelectionManager):
       nonentry_skip = self.percent_skip
       nonentry_fast = self.percent_fast
 
-    if self.order_by_ratio:
+    if self.only_unmeasured:
+      PctRstr = UnmeasuredPercentileRestriction
+    elif self.order_by_ratio:
       PctRstr = RatioPercentileRestriction
     else:
       PctRstr = PercentileRestriction

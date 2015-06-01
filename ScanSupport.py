@@ -128,7 +128,16 @@ class ScanHandler(PathSupport.PathBuilder):
     cond = threading.Condition()
     def notlambda(this):
       cond.acquire()
-      cond._pct = (100.0*rank)/len(this.sorted_r) # lol moar haxx
+      # This is ugly. If we are only scanning the unmeasured routers,
+      # we need a special count of just them..
+      if this.selmgr.only_unmeasured:
+        # XXX: This can exceed 100%
+        count = 0
+        for r in this.sorted_r:
+          if r.unmeasured: count += 1
+      else:
+        count = len(this.sorted_r)
+      cond._pct = (100.0*rank)/count # XXX: Div 0 here if no unmeasured..
       cond.notify()
       cond.release()
     cond.acquire()
@@ -136,6 +145,22 @@ class ScanHandler(PathSupport.PathBuilder):
     cond.wait()
     cond.release()
     return cond._pct
+
+  def get_unmeasured(self):
+    cond = threading.Condition()
+    def notlambda(this):
+      cond.acquire()
+      count = 0
+      for r in this.sorted_r:
+        if r.unmeasured: count += 1
+      cond._count = count
+      cond.notify()
+      cond.release()
+    cond.acquire()
+    self.schedule_low_prio(notlambda)
+    cond.wait()
+    cond.release()
+    return cond._count
 
   def percent_to_rank(self, pct):
     cond = threading.Condition()
