@@ -218,9 +218,12 @@ class PercentileRestriction(NodeRestriction):
     self.pct_fast = pct_fast
     self.pct_skip = pct_skip
     self.sorted_r = r_list
+    plog("NOTICE", "PercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers: "+str(self.sorted_r))
 
   def r_is_ok(self, r):
     "Returns true if r is in the percentile boundaries (by rank)"
+    plog("DEBUG", "PercentileRestriction.r_is_ok "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" ranked "+str(r.list_rank)+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
+
     if r.list_rank < len(self.sorted_r)*self.pct_skip/100: return False
     elif r.list_rank > len(self.sorted_r)*self.pct_fast/100: return False
     
@@ -239,9 +242,11 @@ class RatioPercentileRestriction(NodeRestriction):
     self.pct_fast = pct_fast
     self.pct_skip = pct_skip
     self.sorted_r = r_list
+    plog("NOTICE", "RatioPercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers: "+str(self.sorted_r))
 
   def r_is_ok(self, r):
     "Returns true if r is in the percentile boundaries (by rank)"
+    plog("DEBUG", "RatioPercentileRestriction.r_is_ok "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" ranked "+str(r.ratio_rank)+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
     if r.ratio_rank < len(self.sorted_r)*self.pct_skip/100: return False
     elif r.ratio_rank > len(self.sorted_r)*self.pct_fast/100: return False
 
@@ -260,10 +265,12 @@ class UnmeasuredPercentileRestriction(NodeRestriction):
     self.pct_fast = pct_fast
     self.pct_skip = pct_skip
     self.sorted_r = filter(lambda r: r.unmeasured, r_list)
-    plog("DEBUG", "UnmeasuredPercentileRestriction built with "+str(len(self.sorted_r))+" routers")
+    plog("NOTICE", "UnmeasuredPercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers: "+str(self.sorted_r))
 
   def r_is_ok(self, r):
     "Returns true if r is in the unmeasured percentile boundaries"
+    plog("DEBUG", "UnmeasuredPercentileRestriction.r_is_ok "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" unmeasured "+str(r.unmeasured)+" ranked "+(str(self.sorted_r.index(r)) if r.unmeasured else "(measured)")+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
+
     if not r.unmeasured: return False
 
     # XXX: Can throw an exception somehow??? catch ValueError here..
