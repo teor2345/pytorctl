@@ -1109,6 +1109,7 @@ class SelectionManager(BaseSelectionManager):
     self.min_exits = min_exits
     self.added_exits = []
     self.only_unmeasured = only_unmeasured
+    self.path_selector = None
 
   def reconfigure(self, consensus=None):
     try:
@@ -1317,6 +1318,9 @@ class SelectionManager(BaseSelectionManager):
       self.exit_rstr.add_restriction(IdHexRestriction(self.exit_id))
       plog("DEBUG", "Added exit restriction for "+self.exit_id)
       try:
+        if self.path_selector is None:
+          # ignore bad restrictions and proceed with exit_gen anyway
+          self.reconfigure()
         self.path_selector.exit_gen.rebuild()
         self.bad_restrictions = False
       except RestrictionError, e:
@@ -1327,9 +1331,15 @@ class SelectionManager(BaseSelectionManager):
   def new_consensus(self, consensus):
     self.consensus = consensus
     try:
-      self.path_selector.rebuild_gens(self.consensus.sorted_r)
-      if self.exit_id:
-        self.set_exit(self.exit_id)
+      if self.path_selector is None:
+        # ignore bad restrictions and proceed with rebuild_gens anyway
+        self.reconfigure(consensus)
+      if self.path_selector is not None:
+        self.path_selector.rebuild_gens(self.consensus.sorted_r)
+        if self.exit_id:
+          self.set_exit(self.exit_id)
+      else:
+        plog("WARN", "No path selector available after reconfiguration.")
     except NoNodesRemain:
       plog("NOTICE", "No viable nodes in consensus for restrictions.")
       # Punting + performing reconfigure..")
@@ -1360,9 +1370,16 @@ class SelectionManager(BaseSelectionManager):
           self.exit_rstr.del_restriction(CountryRestriction) 
           self.exit_rstr.add_restriction(CountryRestriction(self.geoip_config.exit_country))
     # Need to rebuild exit generator
+    if self.path_selector is None:
+      # ignore bad restrictions and proceed with exit_gen anyway
+      self.reconfigure()
     self.path_selector.exit_gen.rebuild()
 
   def select_path(self):
+    if self.path_selector is None:
+      if self.reconfigure():
+        plog("WARN", "Reconfigure created target with bad restrictions")
+        raise RestrictionError()
     if self.bad_restrictions:
       plog("WARN", "Requested target with bad restrictions")
       raise RestrictionError()
