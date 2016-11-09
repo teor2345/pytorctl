@@ -220,7 +220,7 @@ class PercentileRestriction(NodeRestriction):
     self.pct_fast = pct_fast
     self.pct_skip = pct_skip
     self.sorted_r = r_list
-    plog("NOTICE", "PercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers: "+str(self.sorted_r))
+    plog("NOTICE", "PercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers")
 
   def r_is_ok(self, r):
     "Returns true if r is in the percentile boundaries (by rank)"
@@ -244,7 +244,7 @@ class RatioPercentileRestriction(NodeRestriction):
     self.pct_fast = pct_fast
     self.pct_skip = pct_skip
     self.sorted_r = r_list
-    plog("NOTICE", "RatioPercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers: "+str(self.sorted_r))
+    plog("NOTICE", "RatioPercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers")
 
   def r_is_ok(self, r):
     "Returns true if r is in the percentile boundaries (by rank)"
@@ -267,7 +267,7 @@ class UnmeasuredPercentileRestriction(NodeRestriction):
     self.pct_fast = pct_fast
     self.pct_skip = pct_skip
     self.sorted_r = filter(lambda r: r.unmeasured, r_list)
-    plog("NOTICE", "UnmeasuredPercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers: "+str(self.sorted_r))
+    plog("NOTICE", "UnmeasuredPercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers")
 
   def r_is_ok(self, r):
     "Returns true if r is in the unmeasured percentile boundaries"
