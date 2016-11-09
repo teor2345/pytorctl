@@ -271,15 +271,18 @@ class UnmeasuredPercentileRestriction(NodeRestriction):
 
   def r_is_ok(self, r):
     "Returns true if r is in the unmeasured percentile boundaries"
-    plog("DEBUG", "UnmeasuredPercentileRestriction.r_is_ok "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" unmeasured "+str(r.unmeasured)+" ranked "+(str(self.sorted_r.index(r)) if r.unmeasured else "(measured)")+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
 
     if not r.unmeasured: return False
 
     # XXX: Can throw an exception somehow??? catch ValueError here..
+    # when a NEWDESC event happens, the relay is not in the list
     try:
       idx = self.sorted_r.index(r)
     except ValueError:
+      plog("DEBUG", "UnmeasuredPercentileRestriction.r_is_ok with relay not in the original list")
       return False
+
+    plog("DEBUG", "UnmeasuredPercentileRestriction.r_is_ok "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" unmeasured "+str(r.unmeasured)+" ranked "+(str(self.sorted_r.index(r)) if r.unmeasured else "(measured)")+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
 
     if idx < len(self.sorted_r)*self.pct_skip/100: return False
     elif idx > len(self.sorted_r)*self.pct_fast/100: return False
