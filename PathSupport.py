@@ -141,6 +141,7 @@ class NodeGenerator:
     """Constructor. Takes a bandwidth-sorted list of Routers 'sorted_r' 
     and a NodeRestrictionList 'rstr_list'"""
     self.rstr_list = rstr_list
+    self.sorted_r = None
     self.rebuild(sorted_r)
 
   def reset_restriction(self, rstr_list):
@@ -152,17 +153,18 @@ class NodeGenerator:
     "Rewind the generator to the 'beginning'"
     self.routers = copy.copy(self.rstr_routers)
     if not self.routers:
-      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list))
+      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list)+" previous list: "+str(self.rstr_routers))
       raise NoNodesRemain(str(self.rstr_list))
  
   def rebuild(self, sorted_r=None):
     """ Extra step to be performed when new routers are added or when
     the restrictions change. """
     if sorted_r != None:
+      prev_sorted_r = self.sorted_r
       self.sorted_r = sorted_r
     self.rstr_routers = filter(lambda r: self.rstr_list.r_is_ok(r), self.sorted_r)
     if not self.rstr_routers:
-      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list))
+      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list)+" previous list: "+str(prev_sorted_r)+" current list: "+str(self.sorted_r)+" passed list: "+str(sorted_r))
       raise NoNodesRemain(str(self.rstr_list))
 
   def mark_chosen(self, r):
