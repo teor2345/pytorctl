@@ -153,7 +153,7 @@ class NodeGenerator:
     "Rewind the generator to the 'beginning'"
     self.routers = copy.copy(self.rstr_routers)
     if not self.routers:
-      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list)+" previous list: "+str(self.rstr_routers))
+      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list)+" previous list: "+str(len(self.rstr_routers)))
       raise NoNodesRemain(str(self.rstr_list))
  
   def rebuild(self, sorted_r=None):
@@ -164,7 +164,7 @@ class NodeGenerator:
       self.sorted_r = sorted_r
     self.rstr_routers = filter(lambda r: self.rstr_list.r_is_ok(r), self.sorted_r)
     if not self.rstr_routers:
-      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list)+" previous list: "+str(prev_sorted_r)+" current list: "+str(self.sorted_r)+" passed list: "+str(sorted_r))
+      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list)+" previous list: "+str(len(prev_sorted_r))+" current list: "+str(len(self.sorted_r))+" passed list: "+str(len(sorted_r)))
       raise NoNodesRemain(str(self.rstr_list))
 
   def mark_chosen(self, r):
