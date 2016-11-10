@@ -153,7 +153,7 @@ class NodeGenerator:
     "Rewind the generator to the 'beginning'"
     self.routers = copy.copy(self.rstr_routers)
     if not self.routers:
-      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list)+" previous list: "+str(len(self.rstr_routers)))
+      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list)+" previous list: "+str(len(self.rstr_routers) if self.rstr_routers is not None else None))
       raise NoNodesRemain(str(self.rstr_list))
  
   def rebuild(self, sorted_r=None):
@@ -164,7 +164,7 @@ class NodeGenerator:
       self.sorted_r = sorted_r
     self.rstr_routers = filter(lambda r: self.rstr_list.r_is_ok(r), self.sorted_r)
     if not self.rstr_routers:
-      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list)+" previous list: "+str(len(prev_sorted_r))+" current list: "+str(len(self.sorted_r))+" passed list: "+str(len(sorted_r)))
+      plog("NOTICE", "No routers left after restrictions applied: "+str(self.rstr_list)+" previous list: "+str(len(prev_sorted_r) if prev_sorted_r is not None else None)+" current list: "+str(len(self.sorted_r) if self.sorted_r is not None else None)+" passed list: "+str(len(sorted_r) if sorted_r is not None else None))
       raise NoNodesRemain(str(self.rstr_list))
 
   def mark_chosen(self, r):
@@ -220,7 +220,7 @@ class PercentileRestriction(NodeRestriction):
     self.pct_fast = pct_fast
     self.pct_skip = pct_skip
     self.sorted_r = r_list
-    plog("NOTICE", "PercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers")
+    plog("NOTICE", "PercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r) if self.sorted_r is not None else None)+" routers")
 
   def r_is_ok(self, r):
     "Returns true if r is in the percentile boundaries (by rank)"
@@ -244,7 +244,7 @@ class RatioPercentileRestriction(NodeRestriction):
     self.pct_fast = pct_fast
     self.pct_skip = pct_skip
     self.sorted_r = r_list
-    plog("NOTICE", "RatioPercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers")
+    plog("NOTICE", "RatioPercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r) if self.sorted_r is not None else None)+" routers")
 
   def r_is_ok(self, r):
     "Returns true if r is in the percentile boundaries (by rank)"
@@ -267,7 +267,7 @@ class UnmeasuredPercentileRestriction(NodeRestriction):
     self.pct_fast = pct_fast
     self.pct_skip = pct_skip
     self.sorted_r = filter(lambda r: r.unmeasured, r_list)
-    plog("NOTICE", "UnmeasuredPercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers")
+    plog("NOTICE", "UnmeasuredPercentileRestriction "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r) if self.sorted_r is not None else None)+" routers")
 
   def r_is_ok(self, r):
     "Returns true if r is in the unmeasured percentile boundaries"
