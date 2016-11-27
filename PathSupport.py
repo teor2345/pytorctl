@@ -248,9 +248,14 @@ class RatioPercentileRestriction(NodeRestriction):
 
   def r_is_ok(self, r):
     "Returns true if r is in the percentile boundaries (by rank)"
+    if r.ratio_rank < len(self.sorted_r)*self.pct_skip/100:
+      plog("NOTICE", "RatioPercentileRestriction.r_is_ok rejected router "+r.idhex+": r.ratio_rank below self.pct_skip: "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" ranked "+str(r.ratio_rank)+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
+      return False
+    elif r.ratio_rank > len(self.sorted_r)*self.pct_fast/100:
+      plog("NOTICE", "RatioPercentileRestriction.r_is_ok rejected router "+r.idhex+": r.ratio_rank above self.pct_fast: "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" ranked "+str(r.ratio_rank)+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
+      return False
+
     plog("DEBUG", "RatioPercentileRestriction.r_is_ok "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" ranked "+str(r.ratio_rank)+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
-    if r.ratio_rank < len(self.sorted_r)*self.pct_skip/100: return False
-    elif r.ratio_rank > len(self.sorted_r)*self.pct_fast/100: return False
 
     return True
 
@@ -272,20 +277,27 @@ class UnmeasuredPercentileRestriction(NodeRestriction):
   def r_is_ok(self, r):
     "Returns true if r is in the unmeasured percentile boundaries"
 
-    if not r.unmeasured: return False
+    if not r.unmeasured:
+      plog("NOTICE", "UnmeasuredPercentileRestriction.r_is_ok rejected router "+r.idhex+": measured: "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" unmeasured "+str(r.unmeasured)+" ranked "+(str(self.sorted_r.index(r)) if r.unmeasured else "(measured)")+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
+      return False
 
     # XXX: Can throw an exception somehow??? catch ValueError here..
     # when a NEWDESC event happens, the relay is not in the list
     try:
       idx = self.sorted_r.index(r)
     except ValueError:
-      plog("DEBUG", "UnmeasuredPercentileRestriction.r_is_ok with relay not in the original list")
+      plog("NOTICE", "UnmeasuredPercentileRestriction.r_is_ok rejected relay "+r.idhex+": relay not in the original list")
       return False
 
-    plog("DEBUG", "UnmeasuredPercentileRestriction.r_is_ok "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" unmeasured "+str(r.unmeasured)+" ranked "+(str(self.sorted_r.index(r)) if r.unmeasured else "(measured)")+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
+    if idx < len(self.sorted_r)*self.pct_skip/100:
+      plog("NOTICE", "UnmeasuredPercentileRestriction.r_is_ok rejected router "+r.idhex+": r.ratio_rank below self.pct_skip: "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" ranked "+str(r.ratio_rank)+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
+      return False
+    elif idx > len(self.sorted_r)*self.pct_fast/100:
+      plog("NOTICE", "UnmeasuredPercentileRestriction.r_is_ok rejected router "+r.idhex+": r.ratio_rank above self.pct_fast: "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" ranked "+str(r.ratio_rank)+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
+      return False
 
-    if idx < len(self.sorted_r)*self.pct_skip/100: return False
-    elif idx > len(self.sorted_r)*self.pct_fast/100: return False
+    plog("DEBUG", "UnmeasuredPercentileRestriction.r_is_ok "+str(self.pct_skip)+"-"+str(self.pct_fast)+" built with "+str(len(self.sorted_r))+" routers, "+str(r)+" ranked "+str(r.ratio_rank)+" range "+str(len(self.sorted_r)*self.pct_skip/100)+"-"+str(len(self.sorted_r)*self.pct_fast/100))
+
     return True
 
   def __str__(self):
@@ -352,13 +364,17 @@ class ConserveExitsRestriction(NodeRestriction):
   "Restriction to reject exits from selection"
   def __init__(self, exit_ports=None):
     self.exit_ports = exit_ports
+    plog("NOTICE", "ConserveExitsRestriction built with exit ports "+str(self.exit_ports))
 
   def r_is_ok(self, r):
     if self.exit_ports:
       for port in self.exit_ports:
         if r.will_exit_to("255.255.255.255", port):
+          plog("NOTICE", "ConserveExitsRestriction rejected relay "+r.idhex+" exits to all IPv4 on "+str(port)+": all exit ports "+str(self.exit_ports))
           return False
       return True
+    if "Exit" in r.flags:
+      plog("NOTICE", "ConserveExitsRestriction rejected relay "+r.idhex+": has exit flag: no exit ports "+str(self.exit_ports))
     return not "Exit" in r.flags
 
   def __str__(self):
@@ -385,12 +401,17 @@ class FlagsRestriction(NodeRestriction):
      flags as strings."""
     self.mandatory = mandatory
     self.forbidden = forbidden
+    plog("NOTICE", "FlagsRestriction built with mandatory: "+str(self.mandatory)+" forbidden: "+str(self.forbidden))
 
   def r_is_ok(self, router):
     for m in self.mandatory:
-      if not m in router.flags: return False
+      if not m in router.flags:
+        plog("NOTICE" if m != 'BadExit' else 'DEBUG', "FlagsRestriction rejected relay "+router.idhex+": "+m+" not in mandatory: "+str(self.mandatory)+" forbidden: "+str(self.forbidden))
+        return False
     for f in self.forbidden:
-      if f in router.flags: return False
+      if f in router.flags:
+        plog("NOTICE", "FlagsRestriction rejected relay "+router.idhex+": "+f+" not in forbidden: mandatory: "+str(self.mandatory)+" forbidden: "+str(self.forbidden))
+        return False
     return True
 
   def __str__(self):
