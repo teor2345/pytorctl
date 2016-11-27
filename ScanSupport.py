@@ -131,13 +131,19 @@ class ScanHandler(PathSupport.PathBuilder):
       # This is ugly. If we are only scanning the unmeasured routers,
       # we need a special count of just them..
       if this.selmgr.only_unmeasured:
-        # XXX: This can exceed 100%
         count = 0
         for r in this.sorted_r:
           if r.unmeasured: count += 1
       else:
         count = len(this.sorted_r)
-      cond._pct = (100.0*rank)/count # XXX: Div 0 here if no unmeasured..
+      if count == 0:
+        # XXX: Div 0 here if no unmeasured..
+        cond._pct = 0.0
+      elif rank > count:
+        # XXX: This can exceed 100%
+        cond._pct = 100.0
+      else:
+        cond._pct = (100.0*rank)/count
       cond.notify()
       cond.release()
     cond.acquire()
