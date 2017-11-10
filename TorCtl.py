@@ -1113,16 +1113,17 @@ class Connection:
         d[k] = rest
     return d
 
-  def set_events(self, events, extended=False):
+  def set_events(self, events, extended=True):
     """Change the list of events that the event handler is interested
        in to those in 'events', which is a list of event names.
        Recognized event names are listed in section 3.3 of the control-spec
     """
-    if extended:
-      plog ("DEBUG", "SETEVENTS EXTENDED %s\r\n" % " ".join(events))
-      self.sendAndRecv("SETEVENTS EXTENDED %s\r\n" % " ".join(events))
-    else:
-      self.sendAndRecv("SETEVENTS %s\r\n" % " ".join(events))
+    # extended is always-on in Tor 0.2.2.1-alpha and later
+    # we take the argument for backwards compatibility, but ignore it
+    if not extended:
+      plog ("NOTICE", "SETEVENTS EXTENDED is always-on in current Tor versions, ignoring extended=False")
+
+    self.sendAndRecv("SETEVENTS %s\r\n" % " ".join(events))
 
   def save_conf(self):
     """Flush all configuration changes to disk.
